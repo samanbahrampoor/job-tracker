@@ -1,0 +1,12 @@
+name = "job-tracker-oauth"
+main = "worker.mjs"
+compatibility_date = "2024-08-01"
+
+[vars]
+ALLOWED_LOGIN = "samanbahrampoor"
+ALLOWED_ORIGIN = "https://samanbahrampoor.github.io"
+PUBLIC_URL = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
+
+[[kv_namespaces]]
+binding = "JOBS_KV"
+id = "c1ecd7041c424e1588508bfe8f6f3288"
