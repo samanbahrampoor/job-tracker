@@ -1,0 +1,465 @@
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[margin , 10pt]{res} % Use the res.cls style, the font size can be changed to 11pt or 12pt here
+
+% \usepackage[a4paper,includeheadfoot,margin=2cm, top=5.25cm, bottom=2cm, left=2cm, right=2cm, headheight=3pt, headsep=2cm, margin=2cm]{geometry}
+\usepackage{helvet} % Default font is the helvetica postscript font
+%\usepackage{newcent} % To change the default font to the new century schoolbook postscript font uncomment this line and comment the one above
+
+%In order to be able to have miltiple-line (block) comment, verbatim package
+%\let\nofiles\relax
+\usepackage {verbatim}
+\usepackage{lastpage}
+%\usepackage{hyperref}
+\usepackage[hidelinks]{hyperref}
+\setlength{\textwidth}{5.1in} % Text width of the document
+%\usepackage{graphicx}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+%\usepackage{scrextend}
+\usepackage{color}
+\usepackage{amssymb}
+%\usepackage{lastpage}
+%\usepackage[ampersand]{easylist}
+\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
+\usepackage{fixltx2e}
+%\setlength{\textwidth}{5.1in} % Text width of the document
+%\usepackage[a4paper,margin=2cm, top=5.25cm, bottom=2cm, left=2cm, right=2cm, headheight=3pt, headsep=2cm, margin=2cm]{geometry} %
+%\usepackage[a4paper]{geometry} 
+%\geometry{%
+	%	a4paper, 
+	%	top=2cm,
+	%	bottom=2cm,
+	%	left=3cm,
+	%	right=2cm,
+	%	includehead,includefoot,
+	%	heightrounded,
+	%	margin=2cm
+	%}
+
+\topmargin 0pt
+\headheight 0pt
+\headsep 0pt
+%\textheight 9in
+\textheight 243mm
+\textwidth 130mm
+\parindent 0pt
+\topmargin 0in
+\oddsidemargin -5mm
+\evensidemargin -5mm
+\marginparwidth 0pt
+\parindent 0pt
+\parskip \baselineskip
+\setcounter{secnumdepth}{0}
+%\def\@listI{\leftmargin\leftmargini}
+\topsep 0pt 
+%	
+%%\topskip = -10mm
+%\setlength{\topskip}{20mm}
+%%\footskip = 8mm
+%\setlength{\voffset}{-10mm}
+%\setlength{\headsep}{8mm}
+%\setlength{\topmargin}{0mm}
+%\setlength{\paperheight}{297mm}
+%\renewcommand{\headrulewidth}{1pt}
+%\renewcommand{\footrulewidth}{1pt}
+
+
+%\topskip = -10mm
+%\topskip 20mm
+%\footskip = 8mm
+%\vglue -7mm
+\voffset -10mm
+\headsep 8mm
+\topmargin 0mm
+\paperheight 297mm
+%\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0.3pt}
+
+
+%\topskip = -10mm
+%\topskip = 20mm
+%\voffset = -10mm
+%\headsep = 8mm
+%\topmargin = 0mm
+%\paperheight = 297mm
+%\renewcommand{\headrulewidth}{1pt}
+
+%\fancyhead{}
+%\fancypagestyle{firstpage}
+%	{\fancyhead[LO]{
+		%		\large{\bfseries{Saman Bahrampoor}} \normalsize \\
+		%		\begin{tabbing}
+			%			Email Address:  \= \ \ \ \ \ \ \ \ \ \ \ \ \ \  {\href{mailto:saman.bahrampoor@gmail.com}{\textcolor{Blue}{saman.bahrampoor@gmail.com}}}  --   {\href{mailto:saman.bahrampoor@nokia.com}{\textcolor{Blue}{saman.bahrampoor@nokia.com}}}\\
+			%			LinkedIn: \> \= \ \ \ \ \ \ \ \ \ \ \ \ \ \ \href{https://fi.linkedin.com/in/saman1}{\textcolor{Blue}{ https://fi.linkedin.com/in/saman1}} \\ Phone Number: \= \ \ \ \ \ \ \ \ \ \ \ \ \ {+358 45 877 5922} \ \ \ \ \ \ \ \ \ \ \ \ \ \ Place of residence:  \= Helsinki, Finland
+			%		\end{tabbing}
+		%	}
+	%	\renewcommand{\headrulewidth}{0.3pt}
+	%	
+	%}
+\fancypagestyle{firstpage}
+{
+	\fancyhead{}
+	\fancyhead[L]{
+		\large{\bfseries{Saman Bahrampoor}} \normalsize \\
+		Email Address:\\
+		LinkedIn:  \\ Phone Number: {+358 45 877 5922}
+	}
+	\fancyhead[R]{ \\ 
+		\href{mailto:saman.bahrampoor@gmail.com}{\textcolor{Blue}{saman.bahrampoor@gmail.com}}  --   \href{mailto:saman.bahrampoor@nokia.com}{\textcolor{Blue}{saman.bahrampoor@nokia.com}}\\
+		\href{https://fi.linkedin.com/in/saman1}{\textcolor{Blue}{ https://fi.linkedin.com/in/saman1}} \\  Place of residence: Helsinki, Finland}
+	\renewcommand{\headrulewidth}{0.3pt}
+}
+\fancyfoot[RO, RE] {\footnotesize  $-$ Page: \thepage\ of \pageref{LastPage} $-$}
+\fancyfoot[CO, CE] {\footnotesize  \ \ \ \ \ }
+%\fancyfoot[RO, RE] {\footnotesize  $-$ Page: \thepage\ of \pageref{LastPage} $-$}
+\begin{document}
+	\thispagestyle{firstpage}
+	\vglue 1mm
+	\begin{resume}
+				%----------------------------------------------------------------------------------------
+		%	OBJECTIVE SECTION
+		%----------------------------------------------------------------------------------------
+	\section{SUMMARY}
+		\begin{itemize}
+			\item[$\circ$] Experienced SoC and IP design engineer with over 9 years in FPGA/ASIC development for medical and telecom sectors. Specialized in high-speed digital and RF circuit design, RISC-V integration, and signal processing IPs. Design/tech lead on cutting-edge projects (TSMC 3nm/5nm).
+			Core Skills: SoC Design, FPGA/ASIC, High-Speed Interfaces (DDR4, 10G Ethernet), RISC-V, Signal Processing, VHDL/Verilog, STA, Power analysis
+			\item[$\circ$]Master's degree in Mico- and Nano-technologies, specialized in Electronic circuit design, Analog, digital and RF IC designs. Extensive experience in designing high speed circuits, boards and chips for medical and telecomm industries (compliant with their respective regulations and standards) %% as well as academic research. 
+			%\item[$\circ$]Designs of DDR4, NBase-T 2.5Gbps and 10GigE Ethernet, PCI-E, USB 3.0, SD/eMMC and other high speed interfaces, FPGA (with  FPGA embedded ARM and Nios processor) and processor boards with 12 layers and 5k+ components running on embedded Yocto Linuxs. AXI4, AXI4-Stream, AXI-Lite, Avalon MM, Avalon ST. 
+			\item[$\circ$] Designed schematics and layouts for 12-layer, 5k+ component boards, multiple network interfaces over PCI-E, FPGA + ARM processors
+			\item[$\circ$] Performed design, signal integrity and high-speed interface analysis (PCI-E Gen. 3, DDR4,  HDMI, USB3, NBase-T, 10G Ethernet) 
+			\item[$\circ$]Designed IP's for FPGA and ASIC: RISC-V integration, DMA controller, data traffic controller, data stream processor, DFT, iDFT, data band-shift, FIR filters.  Analog design for low noise amplifiers, 2.4GHz transceivers, on-chip multi-gigahertz transformers and baluns. 
+		\end{itemize}
+		%----------------------------------------------------------------------------------------
+		%	PROFESSIONAL EXPERIENCE SECTION
+		%----------------------------------------------------------------------------------------
+		
+		\section{WORK EXPERIENCES \ \& PROJECTS}
+		%\renewcommand{\headrulewidth}{0pt}
+		
+		{\sl  Senior SoC/IP design specialist, design lead, tech lead } \dotfill 04.2019 -- present\\
+		Nokia, Finland \vspace{3mm}
+		\begin{itemize}
+			\item[$\circ$] Design Lead and Tech Lead: Several L1 data processing and traffic control ASIC IP design projects, assisting in architecture. (2021 -- present)
+			\begin{itemize}
+			%\item[$\circ$] Design lead and tech lead for multi-core RISC-V processor integration in 2 SoC's ($\sim$1 and 1.2 GHz frequency), for TSMC 3nm and 5nm processes
+%			\item[$\circ$] 
+			\item [$\diamond$]Led design and integration of multi-core RISC-V on 3nm TSMC node, at 1.2GHz timing clean.
+			\item [$\diamond$]C-Plane Processor
+			
+			\end{itemize}
+			\item[$\circ$] Senior SoC design specialist for FPGA and ASIC IP design (2019 -- 2023)
+			\begin{itemize}
+				\item[$\diamond$] ASIC: Memory Arbiter, DMA Controller 
+				\item[$\diamond$] FPGA: Matrix multiplication / beam-forming IP ($\sim$400 MHz F\textsubscript{max}).
+				\item[$\diamond$] FPGA: FIR, DFT-iDFT, PRACH detector IPs ($\sim$400 MHz f\textsubscript{max}).
+%				\item[$\diamond$] \textit{Tools}: Questa, VCS, Quartus Prime Timing Analyzer, DesignCompiler, PrimeTime, PowerArtist, OneSpin
+			\end{itemize}
+			%\item[$\circ$] DMA controller SoC IP design improvement and optimization
+			
+			\item[$\circ$] VHDL/SystemVerilog design, synthesis, simulation (+ floor planning)
+			\item[$\circ$] Collaborated and contributed in IP architectures
+			\item [$\circ$]\textit{Tools}: VCS, Verdi, Questa, PrimeTime, PowerArtist, PrimePower, VCSpyglass, DesignCompiler, AsipDesigner, ARM SoCrates, Quartus, Vivado, 
+		\end{itemize}
+		
+		{\sl R\&D FPGA designer, Electronics designer } \dotfill 04.2016 -- 03.2019\\
+		KaVo Kerr Group (formerly PaloDEx, currently Dexis), Finland\\
+		\begin{itemize}
+			\item[$\circ$] FPGA DDR3 Memory tester IP, PCBA production tester FPGA core, image compression IP, HDMI to LVDS LCD panel driver, LVDS / Ethernet high bandwidth X-Ray panel readout IP cores
+			\item[$\circ$] Collaboration in architecture of data transfer chain of CBCT 3D X-Ray device with multiple imagers
+			\item[$\circ$] Circuit design: schematics, layout design, simulation, signal integrity analysis for high bandwidth interfaces (PCI-E Gen. 3, DDR4,  HDMI, USB3, NBase-T) 
+			\item[$\circ$] 5k+ components / 12 layers PCB, 8$\times$ network interfaces over PCI-E, FPGA + ARM processors, DDR4, USB 3.0
+			% \item[$\circ$] Circuit design: schematics, layout design, simulation, signal integrity analysis optimization \& analysis for gigahertz and fast circuits \& interfaces (PCI-E Gen. 3, DDR4,  HDMI, USB3, NBase-T, 10G Ethernet), boards with 5k+ components and 12 layers, multiple network interfaces over PCI-E, FPGA + ARM processors, motor controllers and power regulators, DDR4, USB 3.0 and SD/eMMC storage interfaces.
+			%		Embedded Yocto Linux and bootloader bring up, Board Support Package (BSP) modifications
+			%		\item[$\circ$] Designed schematics and layouts for 12-layer, 5k+ component boards 12 layers, multiple network interfaces over PCI-E, FPGA + ARM processors
+			%		\item[$\circ$] Performed design, signal integrity and high-speed interface analysis (PCI-E Gen. 3, DDR4,  HDMI, USB3, NBase-T, 10G Ethernet)
+			%		\item[$\circ$] Embedded Yocto Linux and bootloader bring up, Board Support Package (BSP) modifications
+			
+		\end{itemize}
+		%	\renewcommand{\headrulewidth}{0pt}
+		%\newpage \setlength{\topskip}{23mm}
+		%{\sl IC design project } \hfill 08.2015 -- 02.2016\\
+		%Aalto University, Finland\\
+		%	\begin{itemize}
+			%		\item[$\circ$] MCU design with VHDL (including Silicon layout)
+			%	\end{itemize} 
+		{\sl Master's thesis project, RF Design, simulation, layout } \dotfill 08.2013 -- 03.2014\\
+		Aalto University, Finland\\
+		\begin{itemize}
+			\item[$\circ$] RF, Layout design and simulation (circuit Level \& electromagnetic) of  \textit{Monolithic on-chip transformers and inductors for RFIC applications} 
+			\item[$\circ$] Using Agilent ADS to develop an AEL script to automate design of on-chip transformers with any turn ratios, inductances and wire widths
+		\end{itemize}
+		
+		{\sl RFIC design project } \dotfill 2013\\
+		Aalto University, Finland\\
+		\begin{itemize}
+			\item[$\circ$] Bluetooth transceiver frontend (including Silicon layout)
+		\end{itemize} 
+		
+		{\sl Summer trainee} \dotfill  2011\\
+		Aalto University, Finland\\
+		Analog IC Design: Schematics, Silicon Layout using Cadence design kit and Simulation in Synopsys Eldo
+		\begin{itemize}
+			\item[$\circ$] On-chip LNA (Low Noise Amplifier) 
+			\item[$\circ$] LDO (Low Dropout) power regulator, DC-DC switching converter analog design and layout
+		\end{itemize}
+		%\vspace{2mm}
+		
+		%-------------------------------
+		%----------------------------------------------------------------------------------------
+		%	SKILLS SECTION
+		%----------------------------------------------------------------------------------------
+		\section{CORE SKILLS}
+		{\sl \textbf{Electronics engineering, CAD \& EDA Tools:}} \dotfill \vspace{2mm}
+		\begin{itemize}
+			\item[$\circ$] VHDL (and Verilog) design, simulation, system synthesis of digital integrated systems,  UVM verification, Quartus, Xilinx Vivado (plus some HLS: SystemC in Vivado and Calypto Catapult C \& some OpenCL in Quartus), design verification and synthesize to Silicon layout
+			\item[$\circ$]  Design, simulation and verification of electronic and integrated circuits \& systems on different platforms such as Synopsys (including HSPICE, Formality), Cadence  IC design kit (including Virtuoso and Spectre), Mentor Graphics Design kits (QuestaSim, ModelSim, Eldo), TCL and shell scripting
+			\item[$\circ$] Circuit and PCB design (DFM \& DFT) and simulation with Cadence (OrCAD, Allegro, Sigrity), Mentor (PADS Logic/Designer, PADS Layout, HyperLynx), Keysight(Agilent) ADS, Altium. Design for EMC
+			\item[$\circ$] Analog IC, RFIC design, simulation, layout of OpAmps, LDO, LNA, LNTA, DAC, ADC
+			%	\newpage \setlength{\topskip}{28mm}
+			%	\item[$\circ$] RF \& electro-magnetic design \&  simulation using Agilent ADS \& AEL scripting (+ a little ASITIC, HFSS)
+			%	\item[$\circ$] System simulation in  MATLAB %(good)
+			%	, Simulink %(basics)
+			%	, LabView %(intermediate)
+			\item[$\circ$] MEMS design and simulations in COMSOL Multiphysics (Designed and simulated a thermally actuated MEMS micro-mirror with 2-axis controlled orientation for opto-electronic applications) %\newline
+		\end{itemize} \vspace{-3mm}
+		
+		%----------------------------------------------------------------------------------------
+		%	EDUCATION SECTION
+		%----------------------------------------------------------------------------------------
+		\section{EDUCATION}
+		
+		\begin{itemize}
+			\item[$\circ$] {\sl MSc. in IC Design, Micro- \& Nano-technologies}, \dotfill 2016\\
+			Aalto University School of Electrical Engineering, Department of Micro and Nanotechnologies, Finland\\
+			Thesis title: \emph{Monolithic Transformers for RFIC Electronics}\\
+			Major: IC design\\
+			Minor: Micro-fabrication and nanotechnologies %\newline
+			%	\item[$\circ$]{\sl  B.Sc. in Electronics Engineering}, \dotfill 2010\\
+			%	Electrical and Electronics Engineering Department, Faculty of Technology, Urmia University (Iran) \\
+			%	Bachelor's project: \emph{Design and prototyping a  multi-axis automatic solar tracking system for solar panels }
+			%	Bachelor's project: \emph{Design and prototyping an automatic solar tracking system with 2-axis of movements to orient a solar panel in optimal angle during the day, throughout the year}
+		\end{itemize} \vspace{-3mm}
+		%----------------------------------------------------------------------------------------
+		%	RESEARCH INTERESTS
+		%----------------------------------------------------------------------------------------
+		%\section{ RESEARCH \\ INTERESTS}
+		%\begin{itemize}
+		%\item[$\circ$] Interference management and resource allocation;
+		%\item[$\circ$] Energy efficiency in D2D communication systems.
+		%\item[$\circ$] Wireless networks
+		%\item[$\circ$] Optimization techniques 
+		%\item[$\circ$] Wireless sensor networks
+		%\end{itemize}
+%		\newpage
+		\section{OTHER SKILLS}
+		%\renewcommand{\headrulewidth}{0pt}
+		{\sl \textbf{Programming Languages \& Tools:}} \dotfill
+		\begin{itemize}
+			\item[$\circ$] C/C++, 
+			%	Assembly, 
+			C\#, Python, Java,  OpenCL, CUDA, RUST
+			\item[$\circ$] Programming for numerical analysis in Matlab, R
+			\item[$\circ$] Qiskit for Quantum computation
+			\item[$\circ$] Version controlling with Git, SVN, ICM/Perforce 
+			\item[$\circ$] Agile development, Scrum, Jira, Unit testing
+			\item[$\circ$] Basics of CI/CD with Jenkins
+		\end{itemize}
+		
+		
+		
+		{\sl \textbf{Lab skills:}}
+		\begin{itemize}
+			\item[$\circ$] Semiconductors, Microfabrication, Cleanroom: Essential (hands on) knowledge of semiconductor technologies, working experience in Micronova cleanroom labs
+			\item[$\circ$] Extended experience with high speed oscilloscopes, signal generators, VNA, reworking and debugging tools
+		\end{itemize}
+		
+		
+		{\sl \textbf{Other technical skills:}}
+		\begin{itemize}
+			\item[$\circ$] Fundamentals of machine learning and AI
+			%%\item[$\circ$] Fixed point and floating point in RTL
+			%	\item[$\circ$] Signal processing 
+			\item[$\circ$] Typesetting documents and presentations in {\LaTeX}
+			\item[$\circ$] Kaizen, Lean production training
+			\item[$\circ$] Training in ``Problem solving process (PSP)" techniques such as 5-Why, fish-bone root cause analysis, Kaizen, Lean production 
+			\item[$\circ$] Training in ``IEC 60601-1-2" standard for safety and EMC of medical devices
+		\end{itemize}
+		
+		
+		%----------------------------------------------------------------------------------------
+		%	SKILLS AND COMPETENCES
+		%----------------------------------------------------------------------------------------
+		
+		
+		%\begin{itemize}
+		
+		%
+		%\item[$\circ$] Proficient in LaTeX;
+		%\item[$\circ$] Proficient in Microsoft windows, MS office;
+		%\item[$\circ$] Competent in Convex optimization;
+		%\item[$\circ$] Competent in Multiuser MIMO cellular systems;
+		%\item[$\circ$] Practical experience with RF Systems such as HF and VHF/UHF receivers;
+		%\item[$\circ$] Familiar with Cellular System such as 3G, LTE-A.
+		%\end{itemize}
+		%\entry*[Databases]
+		%	My\smallcaps{SQL}, Postgre\smallcaps{SQL}, \smallcaps{HSQL}, \smallcaps{SQL}ite, LotusNotes.
+		%\entry*[Web Dev]
+		%	\textsc{Html, css}, JavaScript, Apache Web Server, Tomcat Web Server.
+		
+		
+		%----------------------------------------------------------------------------------------
+		%	HONORS AND AWARDS
+		%----------------------------------------------------------------------------------------
+		%\newpage \setlength{\topskip}{28mm}
+		
+		
+		%\section{AWARDS}
+		%Student Research grant, Ericsson Research Foundation grant, Sweden, 2019.\\
+		%Master thesis grant, Centre for wireless communications, University of Oulu, 2013.\\
+		%Trainee grant, Centre for wireless communications, University of Oulu, 2012.
+		
+		%----------------------------------------------------------------------------------------
+		%	Apprenticeship
+		%----------------------------------------------------------------------------------------
+		%\section{APPRENTICESHIP} \hspace{5mm}
+		%
+		%{\sl CWC,} \hfill Jan. 2012\\
+		%\begin{itemize}
+		%\item[$\circ$] Study of data offloading from cellular to WLAN.
+		%\item[$\circ$] Study of game theory.
+		%\item[$\circ$] Simulation of one specific data offloading algorithm in MATLAB and comparing different results.
+		%\end{itemize}
+		%
+		%{\sl Test \& Research Dept. of Irankhodro,} \hspace{35mm} Jul. 2005 - Sep. 2005\\
+		%\begin{itemize}
+		%\item[$\circ$] Performing durability tests on electronic parts of automobile.
+		%\item[$\circ$] Designing a test machine for automobile indicator lamp
+		%\end{itemize}
+		
+		%----------------------------------------------------------------------------------------
+		%	Courses
+		%----------------------------------------------------------------------------------------
+		
+		%\begin{comment}
+		
+		\section{SELECTED COURSES AND STUDIES}
+		%Analog systems design\\
+		Digital microelectronics\\
+		Analog and mixed mode IC/system design\\
+		RFIC design\\
+		%Digital microelectronics\\
+		Signals and systems analysis and design\\
+		%Pulsing circuit design \\
+		Computer architecture \\
+		Quantum computations \\
+		Machine learning \\
+		Cloud computing \\
+		Programming for parallel processing \\
+		Fundamentals of 5G core building blocks, LTE radio interface and physical layer\\
+		Microfabrication and nanotechnologies 
+		
+		%----------------------------------------------------------------------------------------
+		%	PUBLICATIONS
+		%--------------------------------------------------------------------------------------
+		
+		%\vspace{3mm}
+		\section{ PUBLICATIONS}
+		\begin{itemize}
+			\item[$\circ$] ``Monolithic Transformers for RF Electronics"\newline
+			LAP Lambert Academic Publishing (May 2015) \newline
+			ISBN: 978-3659710162\newline
+			{\href{http://www.amazon.com/dp/3659710164}{\textcolor{Blue}{ www.amazon.com/dp/3659710164}}}
+			
+			%
+		\end{itemize}
+		%Multiuser MIMO and Spatial Resource Allocation\\
+		%Standardization, Patents, Entrepreneurship, and EU Funding\\
+		%Multiple Antenna Communications\\
+		%%Stochastic Network Optimization\\
+		%Advanced Wireless Communication\\
+		%Advanced Signal Processing\\
+		%Information Theory \\
+		%Deep Learning, Stanford University, Coursera 2019\\\
+		%Machine Learning, Stanford University, Coursera 2016\\
+		
+		
+		%Detection and Estimation of Signals\\ 
+		%Deep Learning Specialization\\
+		%Board member of Network of International Students (NISO), 2012 \\
+		%Collaboration with OYY for student registration, 2012-2013.\\
+		
+		
+		%\end{comment}
+		
+		
+		\section{INTERESTS, HOBBIES}
+		
+		\begin{itemize}
+			\item[$\circ$] \textbf{Interests:} IC design, hardware development, electronic circuits \& systems, Embedded systems, IoT, circuit design, programming and software development
+			\item[$\circ$] \textbf{Hobbies:} Making electronics, photography, 
+			%following technology news,
+			reading books, watching movies, learning to play guitar
+		\end{itemize}
+		
+		%----------------------------------------------------------------------------------------
+		%	Volunteer Job, Currently commented out!
+		%----------------------------------------------------------------------------------------
+		
+		%\begin{comment}
+		
+		%\section{VOLUNTEER}
+		%Tutoring of WCE students, 2012\\
+		%Board member of Network of International Students (NISO), 2012 \\
+		%Collaboration with OYY for student registration, 2012-2013.\\
+		
+		
+		%\end{comment}
+		
+		%----------------------------------------------------------------------------------------
+		%	LANGUAGE SKILLS, Currently commented out!
+		%----------------------------------------------------------------------------------------
+		
+		%\begin{comment}
+		
+%		\section{LANGUAGE SKILLS}
+%		English (Excellent)\\
+%		Swedish (Basic-Intermediate)\\
+%		Finnish (Basic)
+		%Persian (Native)\\
+		%Kurdish (Native)
+		
+		%Swedish: A1/A2\\
+		%Finnish: A1\\
+		%\entry*[Languages] English (TOEFL IBT 95), Swedish (A1/A2), Finnish (A1), Persian (Native).
+		
+		%\end{comment}
+		
+		%----------------------------------------------------------------------------------------
+		%	REFERENCES, Currently commented out!
+		%----------------------------------------------------------------------------------------
+		%It's been commented out
+		%\begin{comment}
+		
+		\section{REFERENCES}
+		
+		Available upon Request
+		%\begin{itemize}
+		%	\item[$\circ$] \textbf{Matthew Goode} \\
+		%	Senior technical leader\\
+		%	SoC/IP architect at Nokia\\
+		%	{\href{mailto:matthew.goode@nokia.com}{\textcolor{Blue}{matthew.goode@nokia.com}}}
+		%	\item[$\circ$] \textbf{Amin Ghazanfari} \\
+		%	PhD. in Electrical Engineering, specialization in communication systems, Massive-MIMO\\
+		%	IP Modeling Lead\\
+		%	{\href{mailto:amin.ghazanfari@nokia.com}{\textcolor{Blue}{amin.ghazanfari@nokia.com}}}
+		%\end{itemize}
+		
+		%\end{comment}
+		%----------------------------------------------------------------------------------------
+	
+
+	\end{resume}
+\end{document} 
