@@ -28,8 +28,11 @@
 
   <script>
     const WORKER_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
-    let token = null;
+	const APP_URL = "https://samanbahrampoor.github.io/job-tracker/jobs.html"; // exact file
 
+	document.getElementById("loginBtn").addEventListener("click", () => {
+    location.href = WORKER_BASE + "/oauth/login?redirect=" + encodeURIComponent(APP_URL);});
+    let token = null;
     // Grab token from URL fragment
     if (location.hash.startsWith("#token=")) {
       token = location.hash.slice(7);
