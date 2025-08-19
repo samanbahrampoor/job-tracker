@@ -3,7 +3,7 @@ export default {
     const url = new URL(req.url);
     const origin = req.headers.get("Origin") || "";
     const cors = {
-      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || origin || "*",
+      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN, // || origin || "*",
       "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Headers": "Content-Type",
       "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
@@ -35,7 +35,7 @@ export default {
       auth.searchParams.set("redirect_uri", (env.PUBLIC_URL || url.origin) + "/oauth/callback");
       auth.searchParams.set("state", state);
       const h = new Headers({ "Location": auth.toString(), ...cors });
-      setCookie(h, "oauth_state", state, {Path:"/", HttpOnly:true, Secure:true, SameSite:"Lax", MaxAge:300});
+      setCookie(h, "oauth_state", state, {Path:"/", HttpOnly:true, Secure:true, SameSite:"None", MaxAge:300});
       setCookie(h, "post_login_redirect", encodeURIComponent(redirect), {Path:"/", HttpOnly:true, Secure:true, SameSite:"Lax", MaxAge:600});
       return new Response(null, { status:302, headers:h });
     }
@@ -60,7 +60,7 @@ export default {
       return new Response(null, { status:302, headers:h });
     }
     if (url.pathname === "/api/logout" && req.method === "POST") {
-      const h = new Headers(cors); setCookie(h, "session","", {Path:"/", HttpOnly:true, Secure:true, SameSite:"Lax", MaxAge:0}); return new Response(null, {status:204, headers:h});
+      const h = new Headers(cors); setCookie(h, "session","", {Path:"/", HttpOnly:true, Secure:true, SameSite:"None", MaxAge:0}); return new Response(null, {status:204, headers:h});
     }
     if (url.pathname === "/api/session") {
       let user=null;
