@@ -146,9 +146,7 @@ export default {
 	  url:     r.url     ?? r.Link    ?? r.URL ?? "",
 	  key:     r.key     ?? `${(r.company ?? r.Company ?? "")}|${(r.job_id ?? r.JobID ?? r.id ?? "")}`
 	}));
-	return new Response(JSON.stringify(jobs), {
-	  headers: { "content-type": "application/json", ...cors }
-	});
+	return new Response(JSON.stringify(jobs), { headers: { "content-type": "application/json", ...cors } });
 
 	
   }
