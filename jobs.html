@@ -1,578 +1,149 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Jobs Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
-    h1 { text-align: center; }
-    .filters { margin: 20px 0; text-align: center; }
-    .job { background: #fff; margin: 10px 0; padding: 15px; border-radius: 8px; 
-           box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    .company { font-weight: bold; font-size: 18px; margin-top: 20px; }
-    .title { font-size: 16px; font-weight: bold; }
-    .location { color: #555; }
-    .applied { margin-left: 10px; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jobs Dashboard</title>
+<style>
+:root{--bg:#0f172a;--card:#0b1223;--muted:#94a3b8;--text:#e2e8f0;--accent:#60a5fa;--border:#1f2a44}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#0b1020 0%,#0f172a 50%,#0a0f1f 100%);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+header{position:sticky;top:0;z-index:10;backdrop-filter:blur(6px);background:rgba(10,15,31,.7);border-bottom:1px solid var(--border)}
+.header-inner{max-width:1100px;margin:0 auto;padding:16px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+h1{margin:0;font-size:22px;letter-spacing:.2px}.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto}
+select,input[type="search"]{background:#0a1120;border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:12px;min-width:200px;outline:none}
+input[type="search"]::placeholder{color:#7c8aa6}button{border:1px solid var(--border);background:#0b1328;color:#cbd5e1;padding:10px 12px;border-radius:12px;cursor:pointer}
+button.primary{background:#1d4ed8;border-color:#1d4ed8;color:white}.badge{font-size:12px;padding:6px 10px;border-radius:999px;background:#0b1328;border:1px solid var(--border);color:#cbd5e1}
+.container{max-width:1100px;margin:0 auto;padding:20px 16px 36px}.section{margin-top:18px}.section h2{margin:22px 0 6px;font-size:18px;font-weight:700;color:#c7d2fe}
+.section h3{margin:12px 0 6px;font-size:14px;font-weight:700;color:#a5b4fc;opacity:.9}.section h4{margin:8px 0 10px;font-size:13px;font-weight:700;color:#93c5fd;opacity:.9}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}.card{background:linear-gradient(180deg,rgba(14,22,43,.9),rgba(12,17,33,.9));border:1px solid var(--border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.card a{color:var(--accent);text-decoration:none;font-weight:600}.meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}.tag{padding:2px 8px;border-radius:999px;background:#0d1731;border:1px solid var(--border)}
+.toggle{display:inline-flex;align-items:center;gap:8px;user-select:none;cursor:pointer;width:fit-content}.toggle input{display:none}
+.switch{width:40px;height:22px;border-radius:999px;background:#0f1a35;border:1px solid var(--border);position:relative;transition:.2s}.knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#7c8aa6;transition:.2s}
+input:checked + .switch{background:linear-gradient(90deg,#2563eb,#06b6d4);border-color:transparent}input:checked + .switch .knob{left:20px;background:white}
+.apply-line{display:flex;align-items:center;justify-content:space-between;gap:10px}hr.sep{border:0;border-top:1px dashed var(--border);margin:12px 0 18px;opacity:.6}
+.notice{background:#0b1328;border:1px solid var(--border);padding:14px;border-radius:12px}footer{text-align:center;color:#8aa0c6;padding:24px;border-top:1px solid var(--border);background:rgba(10,15,31,.4)}
+</style>
 </head>
 <body>
-  <h1>Jobs Dashboard</h1>
-  <div class="filters">
-    <label><input type="checkbox" id="filter-applied"> Show only applied</label>
-    <select id="filter-location">
-      <option value="">All locations</option>
-    </select>
+<header><div class="header-inner"><h1>Jobs Dashboard</h1>
+  <div class="controls">
+    <input id="q" type="search" placeholder="Search title/company/city/country/id">
+    <select id="appliedFilter"><option value="all">All</option><option value="applied">Applied</option><option value="not_applied">Not applied</option></select>
+    <select id="countryFilter"><option value="">All countries</option></select>
+    <select id="cityFilter"><option value="">All cities</option></select>
+    <span class="badge" id="count"></span>
+    <button id="loginBtn" class="primary">Sign in with GitHub</button>
+    <button id="logoutBtn" style="display:none">Sign out</button>
   </div>
-  <div id="jobs">
-<div class='company'>AMD</div>
-            <div class="job" data-location="US, Colorado - Fort Collins" data-id="64866">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/64866" target="_blank">Fellow CPU Cache Architect</a></div>
-              <div class="location">US, Colorado - Fort Collins</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="64866"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="US, TX- Austin" data-id="65430">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/65430" target="_blank">SoC System Performance Architect AI/ML</a></div>
-              <div class="location">US, TX- Austin</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="65430"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="US, CA - San Jose" data-id="65435">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/65435" target="_blank">Sr. Silicon Design Engineer</a></div>
-              <div class="location">US, CA - San Jose</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="65435"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Canada, MARKHAM" data-id="66644">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/66644" target="_blank">SoC Design Architect</a></div>
-              <div class="location">Canada, MARKHAM</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="66644"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="US, CA - Santa Clara" data-id="67131">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/67131" target="_blank">Fellow Silicon Design Engineer</a></div>
-              <div class="location">US, CA - Santa Clara</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="67131"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="US, TX- Austin" data-id="67171">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/67171" target="_blank">CPU Core Senior Staff RTL Methodology Engineer</a></div>
-              <div class="location">US, TX- Austin</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="67171"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="US, CA - San Diego" data-id="67401">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/67401" target="_blank">Sr. Silicon Design Engineer</a></div>
-              <div class="location">US, CA - San Diego</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="67401"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="US, CA - San Jose" data-id="67757">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/67757" target="_blank">RTL Design Engineer</a></div>
-              <div class="location">US, CA - San Jose</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="67757"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="US, CA - Santa Clara" data-id="68330">
-              <div class="title"><a href="https://careers.amd.com/careers-home/jobs/68330" target="_blank">Silicon Design Engineer</a></div>
-              <div class="location">US, CA - Santa Clara</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="68330"> Applied
-              </label>
-            </div>
-            <div class='company'>ARQUIMEA</div>
-            <div class="job" data-location="Spain, Madrid" data-id="5999198">
-              <div class="title"><a href="https://careers.arquimea.com/en-GB/jobs/5999198-fpga-engineer-digital-hardware-design-engineer-vhdl-fpgas-asics?utm_source=LinkedIn" target="_blank">FPGA Engineer / Digital Hardware Design Engineer (VHDL, FPGAs, ASICs)</a></div>
-              <div class="location">Spain, Madrid</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="5999198"> Applied
-              </label>
-            </div>
-            <div class='company'>Analog Devices</div>
-            <div class="job" data-location="Spain, Valencia" data-id="R252429">
-              <div class="title"><a href="https://analogdevices.wd1.myworkdayjobs.com/External/job/Spain-Valencia/Senior-Digital-Design-and-Verification-Engineer_R252429?source=Linkedin" target="_blank">Senior Digital Design And Verification Engineer</a></div>
-              <div class="location">Spain, Valencia</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="R252429"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Spain, Valencia" data-id="R252350">
-              <div class="title"><a href="https://analogdevices.wd1.myworkdayjobs.com/External/job/Spain-Valencia-Cortes-Valencianas/Staff-Digital-Design-Engineer_R252350-1?source=Linkedin" target="_blank">Staff Digital Design Engineer</a></div>
-              <div class="location">Spain, Valencia</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="R252350"> Applied
-              </label>
-            </div>
-            <div class='company'>Antmicro</div>
-            <div class="job" data-location="Sweden, Gothenburg" data-id="660c258f35">
-              <div class="title"><a href="https://careers.antmicro.com/jobs/asic-engineer/" target="_blank">ASIC Design Engineer/SoC Designer</a></div>
-              <div class="location">Sweden, Gothenburg</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="660c258f35"> Applied
-              </label>
-            </div>
-            <div class='company'>Arm</div>
-            <div class="job" data-location="Canada, Toronto" data-id=" 2024-12477">
-              <div class="title"><a href="https://careers.arm.com/job/toronto/principal-soc-design-engineer/33099/71737498224" target="_blank">Principal SoC Design Engineer</a></div>
-              <div class="location">Canada, Toronto</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id=" 2024-12477"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Canada, Toronto" data-id="2025-13937">
-              <div class="title"><a href="https://careers.arm.com/job/toronto/soc-architects/33099/79249324864" target="_blank">SoC Architects</a></div>
-              <div class="location">Canada, Toronto</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-13937"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Canada, Toronto" data-id="2024-12468">
-              <div class="title"><a href="https://careers.arm.com/job/toronto/senior-soc-design-engineer/33099/83349905296" target="_blank">Senior SoC Design Engineer</a></div>
-              <div class="location">Canada, Toronto</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-12468"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="France, Sophia Antipolis" data-id="2024-13238">
-              <div class="title"><a href="https://careers.arm.com/job/sophia-antipolis/senior-cpu-architect/33099/76257729200" target="_blank">Senior CPU Architect</a></div>
-              <div class="location">France, Sophia Antipolis</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-13238"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Sweden, Lund" data-id="2024-11983">
-              <div class="title"><a href="https://careers.arm.com/job/lund/experienced-design-engineer-ai-ml/33099/82167124560" target="_blank">Experienced Design Engineer (AI/ML)</a></div>
-              <div class="location">Sweden, Lund</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-11983"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Bristol" data-id="2025-14624">
-              <div class="title"><a href="https://careers.arm.com/job/bristol/senior-design-engineer/33099/84654857392" target="_blank">Senior Design Engineer</a></div>
-              <div class="location">United Kingdom, Bristol</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-14624"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Cambridge" data-id="2024-12732">
-              <div class="title"><a href="https://careers.arm.com/job/cambridge/principal-ddr-subsystem-architect/33099/76290019520" target="_blank">Principal DDR Subsystem Architect</a></div>
-              <div class="location">United Kingdom, Cambridge</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-12732"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Cambridge" data-id="2024-13079">
-              <div class="title"><a href="https://careers.arm.com/job/cambridge/staff-fpga-engineer/33099/83296402848" target="_blank">Staff FPGA Engineer</a></div>
-              <div class="location">United Kingdom, Cambridge</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-13079"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Cambridge" data-id="2025-13507">
-              <div class="title"><a href="https://careers.arm.com/job/cambridge/senior-staff-design-hardware-engineer/33099/84349465808" target="_blank">Senior/Staff Design Hardware Engineer</a></div>
-              <div class="location">United Kingdom, Cambridge</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-13507"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Cambridge" data-id="2025-14670">
-              <div class="title"><a href="https://careers.arm.com/job/cambridge/principal-pcie-device-architect/33099/85042813664" target="_blank">Principal PCIe Device Architect</a></div>
-              <div class="location">United Kingdom, Cambridge</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-14670"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Manchester" data-id="2025-14113">
-              <div class="title"><a href="https://careers.arm.com/job/manchester/staff-hardware-design-engineer-isp/33099/82890082704" target="_blank">Staff Hardware Design Engineer - ISP</a></div>
-              <div class="location">United Kingdom, Manchester</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-14113"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Manchester" data-id="2025-14592">
-              <div class="title"><a href="https://careers.arm.com/job/manchester/senior-staff-principal-design-engineer-media-ip/33099/84401269216" target="_blank">Senior/Staff/Principal Design Engineer - Media IP</a></div>
-              <div class="location">United Kingdom, Manchester</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-14592"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Austin" data-id="2024-13162">
-              <div class="title"><a href="https://careers.arm.com/job/austin/principal-soc-design-engineer/33099/74848310784" target="_blank">Principal SoC Design Engineer</a></div>
-              <div class="location">United States, Austin</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-13162"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Austin" data-id="2025-13920">
-              <div class="title"><a href="https://careers.arm.com/job/austin/soc-architects/33099/79249325904" target="_blank">SoC Architects</a></div>
-              <div class="location">United States, Austin</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-13920"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Austin" data-id="2024-12316">
-              <div class="title"><a href="https://careers.arm.com/job/austin/senior-soc-design-engineer/33099/83619661536" target="_blank">Senior SoC Design Engineer</a></div>
-              <div class="location">United States, Austin</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-12316"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Austin" data-id="2025-14765">
-              <div class="title"><a href="https://careers.arm.com/job/austin/staff-engineer-design/33099/84516811040" target="_blank">Staff Engineer - Design</a></div>
-              <div class="location">United States, Austin</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-14765"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Chandler" data-id="2024-11250">
-              <div class="title"><a href="https://careers.arm.com/job/chandler/senior-soc-design-engineer/33099/69630389392" target="_blank">Senior SoC Design Engineer</a></div>
-              <div class="location">United States, Chandler</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-11250"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Chandler" data-id="2024-12847">
-              <div class="title"><a href="https://careers.arm.com/job/chandler/staff-soc-design-engineer/33099/74012119632" target="_blank">Staff SoC Design Engineer</a></div>
-              <div class="location">United States, Chandler</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-12847"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, San Diego" data-id="2024-12748">
-              <div class="title"><a href="https://careers.arm.com/job/san-diego/soc-telemetry-architect/33099/80129369120" target="_blank">SoC Telemetry Architect</a></div>
-              <div class="location">United States, San Diego</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-12748"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, San Diego" data-id="2025-14220">
-              <div class="title"><a href="https://careers.arm.com/job/san-diego/senior-principal-soc-lead/33099/84097870608" target="_blank">Senior Principal SoC Lead</a></div>
-              <div class="location">United States, San Diego</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-14220"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, San Jose" data-id="2025-13936">
-              <div class="title"><a href="https://careers.arm.com/job/san-jose/soc-architects/33099/79249325888" target="_blank">SoC Architects</a></div>
-              <div class="location">United States, San Jose</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-13936"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United Kingdom, Cambridge" data-id="2025-14447">
-              <div class="title"><a href="https://careers.arm.com/job/cambridge/senior-staff-fpga-design-engineer/33099/83377047600" target="_blank">Senior/Staff FPGA Design Engineer</a></div>
-              <div class="location">United Kingdom, Cambridge</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-14447"> Applied
-              </label>
-            </div>
-            <div class='company'>Atos</div>
-            <div class="job" data-location="France, Échirolles" data-id="534319">
-              <div class="title"><a href="https://jobs.atos.net/job/%C3%89chirolles-ASIC-Architect-R&D-%28FH%29/1230820001/" target="_blank">Asic Architect R&D (Fh)</a></div>
-              <div class="location">France, Échirolles</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="534319"> Applied
-              </label>
-            </div>
-            <div class='company'>Bosch</div>
-            <div class="job" data-location="Germany, Kusterdingen" data-id="nan">
-              <div class="title"><a href="https://jobs.smartrecruiters.com/BoschGroup/744000059642146-digital-ic-design-engineer-f-m-div-?utm_source=linkedin&utm_medium=jobslot&trid=2d92f286-613b-4daf-9dfa-6340ffbecf73" target="_blank">Digital IC Design Engineer (f/m/div)</a></div>
-              <div class="location">Germany, Kusterdingen</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="nan"> Applied
-              </label>
-            </div>
-            <div class='company'>Ericsson</div>
-            <div class="job" data-location="Sweden, Lund" data-id="768407">
-              <div class="title"><a href="https://jobs.ericsson.com/careers/job/563121765371416" target="_blank">ASIC Architect</a></div>
-              <div class="location">Sweden, Lund</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="768407"> Applied
-              </label>
-            </div>
-            <div class='company'>Huawei</div>
-            <div class="job" data-location="Switzerland, Zurich" data-id="nan">
-              <div class="title"><a href="https://careers.huaweirc.ch/jobs/5119448-senior-researcher-in-soc-architecture-wireless-technologies" target="_blank">(Senior) Researcher in SoC Architecture (Wireless Technologies)</a></div>
-              <div class="location">Switzerland, Zurich</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="nan"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Switzerland, Zurich" data-id="nan">
-              <div class="title"><a href="https://careers.huaweirc.ch/jobs/6080023-chiplet-based-system-and-network-on-chip-design" target="_blank">Chiplet-based system and Network-on-Chip design</a></div>
-              <div class="location">Switzerland, Zurich</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="nan"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Finland, Helsinki" data-id="nan">
-              <div class="title"><a href="https://www.linkedin.com/jobs/view/4174432397/?eBP=NON_CHARGEABLE_CHANNEL&refId=9ByNqpv%2F0aY1DbGaFbnVSQ%3D%3D&trackingId=QG%2Fs5fbhk%2B4W9TJiqVMjMg%3D%3D&trk=flagship3_search_srp_jobs" target="_blank">Senior Hardware Engineer</a></div>
-              <div class="location">Finland, Helsinki</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="nan"> Applied
-              </label>
-            </div>
-            <div class='company'>Microsoft</div>
-            <div class="job" data-location="United States, Redmond" data-id="1849297">
-              <div class="title"><a href="https://jobs.careers.microsoft.com/us/en/job/1849297/Hardware-Engineer" target="_blank">Hardware Engineer</a></div>
-              <div class="location">United States, Redmond</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="1849297"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Mountain View" data-id="1856948">
-              <div class="title"><a href="https://jobs.careers.microsoft.com/us/en/job/1856948/Principal-Physical-Design-Engineer?jobsource=linkedin" target="_blank">Principal Physical Design Engineer</a></div>
-              <div class="location">United States, Mountain View</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="1856948"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Redmond" data-id="1856738">
-              <div class="title"><a href="https://jobs.careers.microsoft.com/us/en/job/1856738/Quantum-Software-Engineer-II?jobsource=linkedin" target="_blank">Quantum Software Engineer Ii</a></div>
-              <div class="location">United States, Redmond</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="1856738"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Redmond" data-id="1861532">
-              <div class="title"><a href="https://jobs.careers.microsoft.com/us/en/job/1861532/Senior-Hardware-Engineer?jobsource=linkedin" target="_blank">Senior Hardware Engineer</a></div>
-              <div class="location">United States, Redmond</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="1861532"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Santa Clara" data-id="1821999">
-              <div class="title"><a href="https://jobs.careers.microsoft.com/us/en/job/1821999/Senior-Silicon-Engineer?jobsource=linkedin" target="_blank">Senior Silicon Engineer</a></div>
-              <div class="location">United States, Santa Clara</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="1821999"> Applied
-              </label>
-            </div>
-            <div class='company'>NVIDIA</div>
-            <div class="job" data-location="Belgium, Ghent" data-id="JR1999961">
-              <div class="title"><a href="https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/Belgium-Ghent/Senior-Mixed-Signal-Design-Engineer_JR1999961?source=jobboardlinkedin" target="_blank">Senior Mixed Signal Design Engineer</a></div>
-              <div class="location">Belgium, Ghent</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="JR1999961"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Santa Clara" data-id="JR1999979">
-              <div class="title"><a href="https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US-CA-Santa-Clara/Senior-Circuit-Design-Engineer_JR1999979?source=jobboardlinkedin" target="_blank">Senior Circuit Design Engineer</a></div>
-              <div class="location">United States, Santa Clara</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="JR1999979"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Santa Clara" data-id="JR1996690">
-              <div class="title"><a href="https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US-CA-Santa-Clara/Senior-Design-Engineer--Coherent-High-Speed-Interconnect_JR1996690?source=jobboardlinkedin" target="_blank">Senior Design Engineer Coherent High Speed Interconnect</a></div>
-              <div class="location">United States, Santa Clara</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="JR1996690"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Santa Clara" data-id="JR2000303">
-              <div class="title"><a href="https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US-OR-Hillsboro/Senior-CPU-Design-Engineer_JR2000303?source=jobboardlinkedin" target="_blank">Senior Cpu Design Engineer</a></div>
-              <div class="location">United States, Santa Clara</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="JR2000303"> Applied
-              </label>
-            </div>
-            <div class='company'>NXP</div>
-            <div class="job" data-location="Italy, Catania" data-id="R-10058619">
-              <div class="title"><a href="https://nxp.wd3.myworkdayjobs.com/careers/job/Catania/Principal-Engineer---Digital-IC-Design_R-10058619?source=LinkedIn" target="_blank">Principal Engineer Digital Ic Design</a></div>
-              <div class="location">Italy, Catania</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="R-10058619"> Applied
-              </label>
-            </div>
-            <div class='company'>Quantum Machines</div>
-            <div class="job" data-location="Denmark, Copenhagen" data-id="nan">
-              <div class="title"><a href="https://www.quantum-machines.co/careers/a4-65d/" target="_blank">HW Analog Design Engineer</a></div>
-              <div class="location">Denmark, Copenhagen</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="nan"> Applied
-              </label>
-            </div>
-            <div class='company'>Rambus</div>
-            <div class="job" data-location="Netherlands, Vught" data-id="2024-21419">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/21419/lead-mts-logic-design/job" target="_blank">Lead MTS Logic Design</a></div>
-              <div class="location">Netherlands, Vught</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2024-21419"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, San Jose" data-id="2025-21477">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/21477/principal-digital-design-engineer/job" target="_blank">Principal Digital Design Engineer</a></div>
-              <div class="location">United States, San Jose</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-21477"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Morrisville" data-id="2025-21492">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/21492/analog-mixed-signal-design-engineer/job" target="_blank">Analog/Mixed Signal Design Engineer</a></div>
-              <div class="location">United States, Morrisville</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-21492"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, San Jose" data-id="2025-21528">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/21528/sr.-analog-mixed-signal-design-engineer/job" target="_blank">Sr. Analog/Mixed-Signal Design Engineer</a></div>
-              <div class="location">United States, San Jose</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-21528"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Netherlands, Rotterdam" data-id="2025-21535">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/21535/asic-design-engineer/job" target="_blank">ASIC Design Engineer</a></div>
-              <div class="location">Netherlands, Rotterdam</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-21535"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="Canada, Montreal" data-id="2025-22322">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/22322/amts-verification-engineering/job" target="_blank">AMTS Verification Engineering</a></div>
-              <div class="location">Canada, Montreal</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-22322"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Hillsboro" data-id="2025-22326EV">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/22326/hardware-design-engineer/job" target="_blank">Hardware Design Engineer</a></div>
-              <div class="location">United States, Hillsboro</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-22326EV"> Applied
-              </label>
-            </div>
-            
-            <div class="job" data-location="United States, Hillsboro" data-id="2025-22336">
-              <div class="title"><a href="https://careers-rambus.icims.com/jobs/22336/principal-hw-design-engineer/job" target="_blank">Principal HW Design Engineer</a></div>
-              <div class="location">United States, Hillsboro</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="2025-22336"> Applied
-              </label>
-            </div>
-            <div class='company'>Spark Microsystems</div>
-            <div class="job" data-location="Canada, Remote" data-id="nan">
-              <div class="title"><a href="https://www.sparkmicro.com/careers/" target="_blank">Multiple options</a></div>
-              <div class="location">Canada, Remote</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="nan"> Applied
-              </label>
-            </div>
-            <div class='company'>Synopsys</div>
-            <div class="job" data-location="Ireland, Dublin" data-id="6977">
-              <div class="title"><a href="https://careers.synopsys.com/job/-/-/44408/76799003120" target="_blank">ASIC Digital Design, Sr Engineer</a></div>
-              <div class="location">Ireland, Dublin</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="6977"> Applied
-              </label>
-            </div>
-            <div class='company'>TSMC</div>
-            <div class="job" data-location="Germany, Munich" data-id="nan">
-              <div class="title"><a href="https://careers.tsmc.com/en_US/careers/JobDetail?jobId=16488&source=LinkedIn" target="_blank">Digital Design Engineer</a></div>
-              <div class="location">Germany, Munich</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="nan"> Applied
-              </label>
-            </div>
-            <div class='company'>imec</div>
-            <div class="job" data-location="Netherlands, Eindhoven" data-id="87b1e41b49">
-              <div class="title"><a href="https://www.imec-int.com/en/work-at-imec/job-opportunities/digital-ic-expert-designer-tech-leader" target="_blank">Technical Leader - Digital IC Design</a></div>
-              <div class="location">Netherlands, Eindhoven</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="87b1e41b49"> Applied
-              </label>
-            </div>
-            
-  </div>
-  <script>
-    document.querySelectorAll(".apply-box").forEach(box => {
-      const id = box.dataset.id;
-      box.checked = localStorage.getItem("applied-" + id) === "true";
-      box.addEventListener("change", () => {
-        localStorage.setItem("applied-" + id, box.checked);
-      });
-    });
+</div></header>
+<main class="container">
+  <div id="signedOut" class="notice" style="display:none"><strong>Private area.</strong> Please sign in with GitHub to view jobs.</div>
+  <div id="root"></div>
+</main>
+<footer>Applied status is saved locally per user.</footer>
+<script>
+const WORKER_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
+const APP_URL = "https://samanbahrampoor.github.io/job-tracker/jobs.html";
 
-    const locations = [...new Set([...document.querySelectorAll(".job")]
-      .map(j => j.dataset.location))].sort();
-    const locSelect = document.getElementById("filter-location");
-    locations.forEach(loc => {
-      const opt = document.createElement("option");
-      opt.value = loc;
-      opt.textContent = loc;
-      locSelect.appendChild(opt);
-    });
+function saveToken(tok){ sessionStorage.setItem("jobs_token", tok); }
+function getToken(){ return sessionStorage.getItem("jobs_token"); }
+function clearToken(){ sessionStorage.removeItem("jobs_token"); }
 
-    function applyFilters() {
-      const appliedOnly = document.getElementById("filter-applied").checked;
-      const selectedLoc = locSelect.value;
-      document.querySelectorAll(".job").forEach(job => {
-        const checked = job.querySelector(".apply-box").checked;
-        const loc = job.dataset.location;
-        let visible = true;
-        if (appliedOnly && !checked) visible = false;
-        if (selectedLoc && loc !== selectedLoc) visible = false;
-        job.style.display = visible ? "" : "none";
-      });
+(function captureTokenFromHash(){
+  const m = location.hash.match(/[#&]token=([^&]+)/);
+  if (m){ saveToken(decodeURIComponent(m[1])); history.replaceState(null,"",location.pathname+location.search); }
+})();
+
+let USER = null;
+function storagePrefix(){ return USER ? ('applied::'+USER.login+'::') : 'applied::anon::'; }
+function storageKey(key){ return storagePrefix() + key; }
+function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function normalize(s){ return (s||'').toLowerCase(); }
+function groupData(data){ const out={}; for (const r of data){const c=r.company||'—',co=r.country||'—',ci=r.city||'—'; (out[c]=out[c]||{}); (out[c][co]=out[c][co]||{}); (out[c][co][ci]=out[c][co][ci]||[]); out[c][co][ci].push(r);} return out; }
+function uniqueSorted(a){ return [...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y)); }
+function computeFilters(data){ const ctry=uniqueSorted(data.map(d=>d.country)), city=uniqueSorted(data.map(d=>d.city));
+  document.getElementById('countryFilter').innerHTML = '<option value="">All countries</option>' + ctry.map(c=>`<option>${c}</option>`).join('');
+  document.getElementById('cityFilter').innerHTML = '<option value="">All cities</option>' + city.map(c=>`<option>${c}</option>`).join('');
+}
+function applyFilters(data){
+  const q=normalize(document.getElementById('q').value);
+  const applied=document.getElementById('appliedFilter').value;
+  const country=document.getElementById('countryFilter').value;
+  const city=document.getElementById('cityFilter').value;
+  return data.filter(d=>{
+    if(q){
+      const hit=[d.title,d.company,d.city,d.country,d.job_id].some(v=>normalize(v).includes(q));
+      if(!hit) return false;
     }
-
-    document.getElementById("filter-applied").addEventListener("change", applyFilters);
-    locSelect.addEventListener("change", applyFilters);
-  </script>
+    if(country && d.country!==country) return false;
+    if(city && d.city!==city) return false;
+    const k=storageKey(d.key); const isApplied=localStorage.getItem(k)==='1';
+    if(applied==='applied' && !isApplied) return false;
+    if(applied==='not_applied' && isApplied) return false;
+    return true;
+  });
+}
+function render(data){
+  const root=document.getElementById('root'); root.innerHTML=''; const grouped=groupData(data); let total=0;
+  Object.keys(grouped).forEach(company=>{
+    const section=el('section','section'); section.appendChild(el('h2','',company));
+    Object.keys(grouped[company]).forEach(country=>{
+      section.appendChild(el('h3','', 'Country: '+country));
+      Object.keys(grouped[company][country]).forEach(city=>{
+        section.appendChild(el('h4','', 'City: '+city)); const grid=el('div','grid'); const jobs=grouped[company][country][city];
+        jobs.forEach(job=>{
+          const card=el('div','card'); const title=el('div','', `<a href="${job.url}" target="_blank" rel="noopener">${job.title || 'Unknown Title'}</a>`);
+          const meta=el('div','meta'); meta.appendChild(el('span','tag',job.company)); meta.appendChild(el('span','tag', job.city ? (job.city+', '+(job.country||'')) : (job.country||'Location: —'))); meta.appendChild(el('span','tag','ID: '+(job.job_id||'—')));
+          const toggle=el('label','toggle apply-line'); const cb=el('input'); cb.type='checkbox'; const key=job.key||(job.company+'|'+job.job_id); cb.dataset.key=key; cb.checked=localStorage.getItem(storageKey(key))==='1';
+          cb.addEventListener('change', ()=>{ if(cb.checked) localStorage.setItem(storageKey(key),'1'); else localStorage.removeItem(storageKey(key)); });
+          const sw=el('span','switch'); const knob=el('span','knob'); sw.appendChild(knob); const lab=el('span','', 'Applied');
+          toggle.appendChild(cb); toggle.appendChild(sw); toggle.appendChild(lab);
+          card.appendChild(title); card.appendChild(meta); card.appendChild(toggle); grid.appendChild(card); total+=1; });
+        section.appendChild(grid); section.appendChild(el('hr','sep')); }); });
+    root.appendChild(section); });
+  document.getElementById('count').textContent = total + ' roles';
+}
+async function fetchJSON(path){
+  const token = getToken();
+  const r = await fetch(path, { headers: token ? { 'Authorization': 'Bearer '+token } : {} });
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return await r.json();
+}
+async function refresh(){
+  const token = getToken();
+  if(!token){
+    document.getElementById('signedOut').style.display='block';
+    document.getElementById('loginBtn').style.display='inline-block';
+    document.getElementById('logoutBtn').style.display='none';
+    document.getElementById('root').innerHTML='';
+    document.getElementById('count').textContent='';
+    return;
+  }
+  try{
+    const session = await fetchJSON(WORKER_BASE+'/api/session');
+    USER = session.authenticated ? session.user : null;
+    if(!USER){ clearToken(); return refresh(); }
+    document.getElementById('signedOut').style.display='none';
+    document.getElementById('loginBtn').style.display='none';
+    document.getElementById('logoutBtn').style.display='inline-block';
+    const data = await fetchJSON(WORKER_BASE+'/api/jobs');
+    computeFilters(data);
+    const run=()=>render(applyFilters(data));
+    ['q','appliedFilter','countryFilter','cityFilter'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', run);
+      document.getElementById(id).addEventListener('change', run);
+    });
+    run();
+  }catch(e){
+    document.getElementById('signedOut').style.display='block';
+    document.getElementById('root').innerHTML='<div class="notice">Failed to load jobs.</div>';
+  }
+}
+document.getElementById('loginBtn').addEventListener('click', ()=>{
+  location.href = WORKER_BASE + '/oauth/login?redirect=' + encodeURIComponent(APP_URL);
+});
+document.getElementById('logoutBtn').addEventListener('click', ()=>{ clearToken(); location.reload(); });
+document.addEventListener('DOMContentLoaded', refresh);
+</script>
 </body>
 </html>
