@@ -72,7 +72,7 @@ export default {
     // --- routes ---
     if (url.pathname === "/oauth/login") {
       const state = crypto.randomUUID();
-      const redirect = url.searchParams.get("redirect") || (env.ALLOWED_ORIGIN || "");
+      const redirect = url.searchParams.get("redirect") || ((env.ALLOWED_ORIGIN || "") + "/job-tracker/jobs.html"); // exact path to your page
       const auth = new URL("https://github.com/login/oauth/authorize");
       auth.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
       auth.searchParams.set("scope", "read:user");
