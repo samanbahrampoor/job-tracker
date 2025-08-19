@@ -4,7 +4,7 @@ export default {
     const url = new URL(req.url);
     const origin = req.headers.get("Origin") || "";
     const cors = {
-      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || origin || "*",
+      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN, // || origin || "*",
       "Access-Control-Allow-Credentials": "false",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Allow-Methods": "GET,POST,OPTIONS",

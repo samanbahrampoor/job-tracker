@@ -3,9 +3,9 @@ main = "worker.mjs"
 compatibility_date = "2024-08-01"
 
 [vars]
-ALLOWED_LOGIN = "samanbahrampoor"
+ALLOWED_LOGIN  = "samanbahrampoor"
 ALLOWED_ORIGIN = "https://samanbahrampoor.github.io"
-PUBLIC_URL = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
+PUBLIC_URL     = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
 
 [[kv_namespaces]]
 binding = "JOBS_KV"
