@@ -125,13 +125,31 @@ export default {
     }
 
     // 4) Jobs (protected)
-    if (url.pathname === "/api/jobs") {
+    /*if (url.pathname === "/api/jobs") {
       const user = await verifyTokenFromAuth(request.headers.get("Authorization"));
       if (!user) return new Response(JSON.stringify({ error: "not_authenticated" }), { status: 401, headers: { "content-type":"application/json", ...cors } });
       const jobs = await env.JOBS_KV.get("jobs.json", "json");
       return new Response(JSON.stringify(jobs || []), { headers: { "content-type":"application/json", ...cors } });
-    }
+    }*/
+	
 
-    return new Response("OK", { headers: cors });
+    //return new Response("OK", { headers: cors });
+	// inside: if (url.pathname === "/api/jobs") { ... }
+	const raw = await env.JOBS_KV.get("jobs.json", "json") || [];
+	// Normalize to the shape the UI expects
+	const jobs = raw.map(r => ({
+	  company: r.company ?? r.Company ?? "",
+	  title:   r.title   ?? r.Title   ?? "",
+	  city:    r.city    ?? r.City    ?? "",
+	  country: r.country ?? r.Country ?? "",
+	  job_id:  r.job_id  ?? r.JobID   ?? r.id ?? "",
+	  url:     r.url     ?? r.Link    ?? r.URL ?? "",
+	  key:     r.key     ?? `${(r.company ?? r.Company ?? "")}|${(r.job_id ?? r.JobID ?? r.id ?? "")}`
+	}));
+	return new Response(JSON.stringify(jobs), {
+	  headers: { "content-type": "application/json", ...cors }
+	});
+
+	
   }
 }
