@@ -10,3 +10,17 @@ PUBLIC_URL     = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
 [[kv_namespaces]]
 binding = "JOBS_KV"
 id = "c1ecd7041c424e1588508bfe8f6f3288"
+
+kv_namespaces = [
+  { binding = "JOB_STATUS", id = "b581e095c8be4d8d9ac46b9f9639fe52" }
+]
+
+[env.dev]
+kv_namespaces = [
+  { binding = "JOBS_KV", id = "01ec05a83b004714a613d03359d2ed21" }
+]
+
+[env.dev.vars]
+# Whatever makes sense for local testing:
+ALLOWED_ORIGIN = "http://localhost:5173" # or wherever you run Pages locally
+PUBLIC_URL = "https://job-tracker-oauth-dev.saman-bahrampoor.workers.dev"
