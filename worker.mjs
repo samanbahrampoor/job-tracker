@@ -1,163 +1,205 @@
-// worker.mjs — Full Worker with OAuth + Jobs + Applied sync
+// worker.mjs — OAuth (GitHub) + status API persisted in KV (JOBS_KV)
+
+const SESSION_COOKIE = "sid";           // session cookie name (HttpOnly)
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
+const GH_AUTH_URL = "https://github.com/login/oauth/authorize";
+const GH_TOKEN_URL = "https://github.com/login/oauth/access_token";
+const GH_USER_API = "https://api.github.com/user";
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const cors = {
-      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN,
-      "Access-Control-Allow-Headers": "Authorization, Content-Type",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    };
+    const origin = env.ALLOWED_ORIGIN || "https://samanbahrampoor.github.io";
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: cors });
+    // --- CORS preflight for API routes ---
+    if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+      return preflight(origin);
     }
 
-    // -------------------
-    // JWT Helpers
-    // -------------------
-    function b64urlEncode(u8) {
-      let s = "";
-      for (let i = 0; i < u8.length; i += 0x8000)
-        s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
-      return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    }
-    function b64urlDecodeToU8(s) {
-      s = s.replace(/-/g, "+").replace(/_/g, "/");
-      const pad = s.length % 4 === 2 ? "==" : s.length % 4 === 3 ? "=" : "";
-      const bin = atob(s + pad);
-      const out = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-      return out;
-    }
-    async function hmacHex(secret, data) {
-      const key = await crypto.subtle.importKey(
-        "raw",
-        new TextEncoder().encode(secret),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"]
-      );
-      const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
-      return b64urlEncode(new Uint8Array(sig));
-    }
-    async function signToken(payload, secret) {
-      const header = b64urlEncode(new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
-      const body = b64urlEncode(new TextEncoder().encode(JSON.stringify(payload)));
-      const sig = await hmacHex(secret, header + "." + body);
-      return header + "." + body + "." + sig;
-    }
-    async function verifyToken(token, secret, allowedLogin) {
-      const [h, b, sig] = token.split(".");
-      const expected = await hmacHex(secret, h + "." + b);
-      if (sig !== expected) throw new Error("bad signature");
-      const payload = JSON.parse(new TextDecoder().decode(b64urlDecodeToU8(b)));
-      if (payload.login !== allowedLogin) throw new Error("not allowed");
-      return payload;
-    }
+    // --- Router ---
+    if (url.pathname === "/auth/start")  return authStart(request, env);
+    if (url.pathname === "/auth/callback") return authCallback(request, env);
+    if (url.pathname === "/auth/logout") return authLogout(request, env, origin);
 
-    // -------------------
-    // GitHub OAuth
-    // -------------------
-    if (url.pathname === "/oauth/login") {
-      const state = crypto.randomUUID() + "|" + encodeURIComponent(url.searchParams.get("redirect") || env.ALLOWED_ORIGIN);
-      const loc = `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&scope=read:user&redirect_uri=${env.PUBLIC_URL}/oauth/callback&state=${state}`;
-      return Response.redirect(loc, 302);
-    }
+    if (url.pathname === "/api/status") {
+      const user = await getUserFromSession(request, env);
+      if (!user) {
+        return withCORS(new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401, headers: { "Content-Type": "application/json" }
+        }), origin);
+      }
+      const key = `user:${user.login}:applied`;
 
-    if (url.pathname === "/oauth/callback") {
-      const code = url.searchParams.get("code");
-      const stateParam = url.searchParams.get("state") || "";
-      const redirect = decodeURIComponent((stateParam.split("|")[1] || env.ALLOWED_ORIGIN));
-
-      // Exchange code for token
-      const ghRes = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: { Accept: "application/json" },
-        body: new URLSearchParams({
-          client_id: env.GITHUB_CLIENT_ID,
-          client_secret: env.GITHUB_CLIENT_SECRET,
-          code
-        }),
-      });
-      const ghData = await ghRes.json();
-      const token = ghData.access_token;
-
-      // Get user
-      const userRes = await fetch("https://api.github.com/user", {
-        headers: { Authorization: "token " + token, "User-Agent": "cfworker" },
-      });
-      const user = await userRes.json();
-
-      if (user.login !== env.ALLOWED_LOGIN) {
-        return new Response("not allowed", { status: 403 });
+      if (request.method === "GET") {
+        const data = await env.JOBS_KV.get(key);
+        return withCORS(new Response(data ?? "{}", {
+          headers: { "Content-Type": "application/json" }
+        }), origin);
       }
 
-      const appToken = await signToken({ login: user.login, id: user.id }, env.SESSION_SECRET);
-      const loc = redirect + (redirect.includes("#") ? "&" : "#") + "token=" + appToken;
-      return Response.redirect(loc, 302);
-    }
-
-    // -------------------
-    // API: session
-    // -------------------
-    if (url.pathname === "/api/session") {
-      const token = request.headers.get("Authorization")?.split(" ")[1];
-      if (!token) return new Response("unauthorized", { status: 401, headers: cors });
-      try {
-        const payload = await verifyToken(token, env.SESSION_SECRET, env.ALLOWED_LOGIN);
-        return new Response(JSON.stringify({ authenticated: true, user: payload }), { headers: { "content-type": "application/json", ...cors } });
-      } catch {
-        return new Response("unauthorized", { status: 401, headers: cors });
+      if (request.method === "PUT") {
+        let body = {};
+        try { body = await request.json(); } catch {}
+        if (typeof body !== "object" || body === null) body = {};
+        await env.JOBS_KV.put(key, JSON.stringify(body));
+        return withCORS(new Response(JSON.stringify({ ok: true }), {
+          headers: { "Content-Type": "application/json" }
+        }), origin);
       }
+
+      return withCORS(new Response("Method not allowed", { status: 405 }), origin);
     }
 
-    // -------------------
-    // API: jobs
-    // -------------------
-    if (url.pathname === "/api/jobs") {
-      const raw = await env.JOBS_KV.get("jobs.json");
-      return new Response(raw || "[]", { headers: { "content-type": "application/json", ...cors } });
+    if (url.pathname === "/api/whoami") {
+      const user = await getUserFromSession(request, env);
+      return withCORS(new Response(JSON.stringify({ user: user ? { login: user.login, id: user.id } : null }), {
+        headers: { "Content-Type": "application/json" }
+      }), origin);
     }
 
-    // -------------------
-    // API: applied
-    // -------------------
-    async function getApplied(user) {
-      const val = await env.JOBS_KV.get("applied:" + user);
-      return val ? JSON.parse(val) : [];
-    }
-    async function setApplied(user, list) {
-      await env.JOBS_KV.put("applied:" + user, JSON.stringify(list));
-    }
-
-    if (url.pathname === "/api/applied" && request.method === "GET") {
-      const token = request.headers.get("Authorization")?.split(" ")[1];
-      if (!token) return new Response("unauthorized", { status: 401, headers: cors });
-      try {
-        const { login } = await verifyToken(token, env.SESSION_SECRET, env.ALLOWED_LOGIN);
-        const list = await getApplied(login);
-        return new Response(JSON.stringify(list), { headers: { "content-type": "application/json", ...cors } });
-      } catch {
-        return new Response("unauthorized", { status: 401, headers: cors });
-      }
-    }
-
-    if (url.pathname === "/api/applied" && request.method === "POST") {
-      const token = request.headers.get("Authorization")?.split(" ")[1];
-      if (!token) return new Response("unauthorized", { status: 401, headers: cors });
-      try {
-        const { login } = await verifyToken(token, env.SESSION_SECRET, env.ALLOWED_LOGIN);
-        const body = await request.json();
-        const list = new Set(await getApplied(login));
-        if (body.applied) list.add(body.key); else list.delete(body.key);
-        await setApplied(login, [...list]);
-        return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json", ...cors } });
-      } catch {
-        return new Response("unauthorized", { status: 401, headers: cors });
-      }
-    }
-
-    return new Response("worker running", { headers: cors });
+    // Not found
+    return new Response("Not found", { status: 404 });
   }
 };
+
+/* ---------------------- OAuth: /auth/start ---------------------- */
+async function authStart(request, env) {
+  const url = new URL(request.url);
+  const redirect = url.searchParams.get("redirect") || (env.ALLOWED_ORIGIN || "") + "/job-tracker/jobs.html";
+  const state = crypto.randomUUID();
+
+  // Keep the redirect for the callback (state -> redirect), TTL 10 min
+  await env.JOBS_KV.put(`oauth:state:${state}`, redirect, { expirationTtl: 600 });
+
+  const clientId = await getSecret(env, "GITHUB_CLIENT_ID");
+  const authorizeUrl = new URL(GH_AUTH_URL);
+  authorizeUrl.searchParams.set("client_id", clientId);
+  authorizeUrl.searchParams.set("scope", "read:user");
+  authorizeUrl.searchParams.set("state", state);
+
+  return Response.redirect(authorizeUrl.toString(), 302);
+}
+
+/* -------------------- OAuth: /auth/callback --------------------- */
+async function authCallback(request, env) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state) return new Response("Missing code/state", { status: 400 });
+
+  const redirect = await env.JOBS_KV.get(`oauth:state:${state}`);
+  if (!redirect) return new Response("Invalid state", { status: 400 });
+
+  // Invalidate state
+  await env.JOBS_KV.delete(`oauth:state:${state}`);
+
+  const clientId = await getSecret(env, "GITHUB_CLIENT_ID");
+  const clientSecret = await getSecret(env, "GITHUB_CLIENT_SECRET");
+
+  // Exchange code for token
+  const tokenRes = await fetch(GH_TOKEN_URL, {
+    method: "POST",
+    headers: { "Accept": "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code })
+  });
+  if (!tokenRes.ok) return new Response("Token exchange failed", { status: 500 });
+  const tokenJson = await tokenRes.json();
+  const accessToken = tokenJson.access_token;
+  if (!accessToken) return new Response("No access token", { status: 500 });
+
+  // Get user
+  const userRes = await fetch(GH_USER_API, {
+    headers: { "Accept": "application/json", "Authorization": `Bearer ${accessToken}`, "User-Agent": "job-tracker-worker" }
+  });
+  if (!userRes.ok) return new Response("User fetch failed", { status: 500 });
+  const ghUser = await userRes.json();
+
+  // Optional allow-list
+  if (env.ALLOWED_LOGIN && env.ALLOWED_LOGIN !== ghUser.login) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  // Create a session
+  const sid = crypto.randomUUID();
+  const session = { login: ghUser.login, id: ghUser.id };
+  await env.JOBS_KV.put(`sess:${sid}`, JSON.stringify(session), { expirationTtl: SESSION_TTL_SECONDS });
+
+  // Set cookie (HttpOnly; cross-site)
+  const headers = new Headers();
+  headers.append("Set-Cookie", cookieSet(SESSION_COOKIE, sid, {
+    httpOnly: true, secure: true, sameSite: "None", path: "/", maxAge: SESSION_TTL_SECONDS
+  }));
+  headers.append("Location", redirect);
+
+  return new Response(null, { status: 302, headers });
+}
+
+/* ------------------------ /auth/logout -------------------------- */
+async function authLogout(request, env, origin) {
+  const url = new URL(request.url);
+  const redirect = url.searchParams.get("redirect") || (origin + "/job-tracker/jobs.html");
+  const sid = cookieGet(request.headers.get("Cookie") || "", SESSION_COOKIE);
+  if (sid) await env.JOBS_KV.delete(`sess:${sid}`);
+
+  const headers = new Headers();
+  headers.append("Set-Cookie", cookieSet(SESSION_COOKIE, "", {
+    httpOnly: true, secure: true, sameSite: "None", path: "/", maxAge: 0
+  }));
+  headers.append("Location", redirect);
+
+  return new Response(null, { status: 302, headers });
+}
+
+/* --------------------- Session helper --------------------------- */
+async function getUserFromSession(request, env) {
+  const cookie = request.headers.get("Cookie") || "";
+  const sid = cookieGet(cookie, SESSION_COOKIE);
+  if (!sid) return null;
+  const json = await env.JOBS_KV.get(`sess:${sid}`);
+  if (!json) return null;
+  try { return JSON.parse(json); } catch { return null; }
+}
+
+/* --------------------- CORS helpers ----------------------------- */
+function preflight(origin) {
+  return new Response(null, {
+    headers: {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Vary": "Origin",
+    },
+  });
+}
+function withCORS(res, origin) {
+  const headers = new Headers(res.headers);
+  headers.set("Access-Control-Allow-Origin", origin);
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.append("Vary", "Origin");
+  return new Response(res.body, { ...res, headers });
+}
+
+/* --------------------- Cookie helpers --------------------------- */
+function cookieGet(cookieHeader, name) {
+  const m = cookieHeader.match(new RegExp("(^|; )" + name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&") + "=([^;]*)"));
+  return m ? decodeURIComponent(m[2]) : null;
+}
+function cookieSet(name, value, opts = {}) {
+  const p = [];
+  p.push(`${name}=${encodeURIComponent(value)}`);
+  if (opts.path) p.push(`Path=${opts.path}`);
+  if (opts.maxAge !== undefined) p.push(`Max-Age=${opts.maxAge}`);
+  if (opts.sameSite) p.push(`SameSite=${opts.sameSite}`);
+  if (opts.secure) p.push("Secure");
+  if (opts.httpOnly) p.push("HttpOnly");
+  return p.join("; ");
+}
+
+/* --------------------- Secret helper ---------------------------- */
+async function getSecret(env, key) {
+  // Wrangler "secrets" are exposed as env vars at runtime
+  const v = env[key];
+  if (!v) throw new Error(`Missing secret/env: ${key}`);
+  return v;
+}

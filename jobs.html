@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Header / Auth -->
   <header id="header">
     <h1>Job Tracker</h1>
     <div id="auth">
@@ -20,38 +19,29 @@
     </div>
   </header>
 
-  <!-- Status / messages -->
   <div id="messages">
     <div id="error" role="alert" style="display:none;"></div>
     <div id="info" style="display:none;"></div>
     <div id="save-indicator" aria-live="polite"></div>
   </div>
 
-  <!-- Jobs UI -->
   <main id="content">
-    <section id="controls">
-      <!-- (Keep your existing filters if any; this is just a placeholder container) -->
-    </section>
-
     <section id="jobs">
       <div id="loading">Loading jobs…</div>
-      <!-- Rendered content goes here -->
     </section>
   </main>
 
   <script>
-  // ========= Configuration =========
+  // ===== Config =====
   const API_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
-  const JOBS_JSON_URL = "jobs.json"; // same-origin on GitHub Pages
+  const JOBS_JSON_URL = "jobs.json";
 
-  // ========= Minimal state =========
-  let jobs = [];                 // array of job objects from jobs.json
-  let appliedById = {};          // { jobId: true/false } from KV
-  let user = null;               // optional { login, id } if you expose it later
+  // ===== State =====
+  let jobs = [];
+  let appliedById = {};
   let saveTimer = null;
-  const SAVE_DEBOUNCE_MS = 300;
 
-  // ========= Elements =========
+  // ===== UI refs =====
   const $signinBtn = document.getElementById("signin-btn");
   const $signoutBtn = document.getElementById("signout-btn");
   const $signedInWrap = document.getElementById("signedin-wrap");
@@ -60,191 +50,140 @@
   const $info = document.getElementById("info");
   const $saveIndicator = document.getElementById("save-indicator");
   const $jobs = document.getElementById("jobs");
-  const $loading = document.getElementById("loading");
 
-  // ========= Helpers =========
-  function showError(msg) {
-    $error.textContent = msg;
-    $error.style.display = "block";
-  }
-  function clearError() {
-    $error.textContent = "";
-    $error.style.display = "none";
-  }
-  function showInfo(msg) {
-    $info.textContent = msg;
-    $info.style.display = "block";
-  }
-  function clearInfo() {
-    $info.textContent = "";
-    $info.style.display = "none";
-  }
-  function setSaving(state) {
-    if (state === "saving") $saveIndicator.textContent = "Saving…";
-    else if (state === "saved") $saveIndicator.textContent = "Saved.";
-    else $saveIndicator.textContent = "";
+  // ===== Helpers =====
+  function showError(msg){ $error.textContent = msg; $error.style.display = "block"; }
+  function clearError(){ $error.textContent=""; $error.style.display = "none"; }
+  function showInfo(msg){ $info.textContent = msg; $info.style.display = "block"; }
+  function clearInfo(){ $info.textContent=""; $info.style.display = "none"; }
+  function setSaving(state){
+    if(state==="saving") $saveIndicator.textContent="Saving…";
+    else if(state==="saved") $saveIndicator.textContent="Saved.";
+    else $saveIndicator.textContent="";
   }
 
-  // reasonably-stable small hash for IDs (keeps style unchanged, avoids extra deps)
-  function hashId(str) {
-    // xfnv1a + a little mixing
-    let h1 = 2166136261 >>> 0;
-    for (let i = 0; i < str.length; i++) {
-      h1 ^= str.charCodeAt(i);
-      h1 = Math.imul(h1, 16777619);
+  // small deterministic hash for IDs
+  function hashId(str){
+    let h=2166136261>>>0;
+    for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); }
+    h+=h<<13; h^=h>>>7; h+=h<<3; h^=h>>>17; h+=h<<5;
+    return (h>>>0).toString(36);
+  }
+  function computeJobId(j){
+    if (j.id) return String(j.id);
+    const c=(j.company||j.Company||"").trim();
+    const t=(j.title||j.Title||"").trim();
+    const ci=(j.city||j.City||"").trim();
+    const co=(j.country||j.Country||"").trim();
+    const u=(j.url||j.URL||j.link||j.Link||"").trim();
+    return hashId(`${c}|${t}|${ci}|${co}|${u}`.toLowerCase());
+  }
+  function jobTitle(j){ return (j.title||j.Title||"").trim(); }
+  function jobCompany(j){ return (j.company||j.Company||"").trim(); }
+  function jobCountryCity(j){
+    const co=(j.country||j.Country||"").trim();
+    const ci=(j.city||j.City||"").trim();
+    return [co,ci].filter(Boolean).join(" / ");
+  }
+  function jobUrl(j){ return (j.url||j.URL||j.link||j.Link||"#").trim(); }
+
+  function groupByCompanyThenLocation(list){
+    const g={};
+    for(const j of list){
+      const comp = jobCompany(j) || "Unknown";
+      const loc = jobCountryCity(j) || "Unknown";
+      g[comp] ??= {};
+      g[comp][loc] ??= [];
+      g[comp][loc].push(j);
     }
-    // finalization
-    h1 += h1 << 13; h1 ^= h1 >>> 7;
-    h1 += h1 << 3;  h1 ^= h1 >>> 17;
-    h1 += h1 << 5;
-    // base36 for compactness
-    return (h1 >>> 0).toString(36);
+    return g;
   }
 
-  // get a stable job id from json fields or DOM
-  function computeJobId(job) {
-    if (job.id) return String(job.id);
-    const company = (job.company || job.Company || "").trim();
-    const title   = (job.title || job.Title || "").trim();
-    const city    = (job.city || job.City || "").trim();
-    const country = (job.country || job.Country || "").trim();
-    const url     = (job.url || job.URL || job.link || job.Link || "").trim();
-    const base = `${company}|${title}|${city}|${country}|${url}`.toLowerCase();
-    return hashId(base);
-  }
-
-  function groupByCompanyThenLocation(list) {
-    const groups = {};
-    for (const j of list) {
-      const company = (j.company || j.Company || "Unknown").trim();
-      const country = (j.country || j.Country || "Unknown").trim();
-      const city = (j.city || j.City || "Unknown").trim();
-      groups[company] ??= {};
-      const key = `${country} / ${city}`;
-      groups[company][key] ??= [];
-      groups[company][key].push(j);
-    }
-    return groups;
-  }
-
-  function jobTitle(j) {
-    return (j.title || j.Title || "").trim();
-  }
-  function jobCompany(j) {
-    return (j.company || j.Company || "").trim();
-  }
-  function jobLocation(j) {
-    const country = (j.country || j.Country || "").trim();
-    const city = (j.city || j.City || "").trim();
-    return [country, city].filter(Boolean).join(" / ");
-  }
-  function jobUrl(j) {
-    return (j.url || j.URL || j.link || j.Link || "#").trim();
-  }
-
-  // ========= Rendering (no CSS changes) =========
-  function renderJobs() {
+  // ===== Render =====
+  function renderJobs(){
     $jobs.innerHTML = "";
+    const grouped = groupByCompanyThenLocation(jobs);
+
     const container = document.createElement("div");
     container.id = "jobs-container";
 
-    const grouped = groupByCompanyThenLocation(jobs);
-
-    Object.keys(grouped).sort((a,b)=>a.localeCompare(b)).forEach(company => {
-      const companySection = document.createElement("section");
-      companySection.className = "company-group";
-
+    Object.keys(grouped).sort((a,b)=>a.localeCompare(b)).forEach(company=>{
+      const section = document.createElement("section");
+      section.className = "company-group";
       const h2 = document.createElement("h2");
       h2.textContent = company;
-      companySection.appendChild(h2);
+      section.appendChild(h2);
 
       const locs = grouped[company];
-      Object.keys(locs).sort((a,b)=>a.localeCompare(b)).forEach(locKey => {
+      Object.keys(locs).sort((a,b)=>a.localeCompare(b)).forEach(loc=>{
         const locDiv = document.createElement("div");
-        locDiv.className = "location-group";
+        locDiv.className="location-group";
 
-        const h3 = document.createElement("h3");
-        h3.textContent = locKey;
-        locDiv.appendChild(h3);
+        const h3=document.createElement("h3"); h3.textContent=loc; locDiv.appendChild(h3);
+        const ul=document.createElement("ul"); ul.className="job-list";
 
-        const ul = document.createElement("ul");
-        ul.className = "job-list";
+        locs[loc].slice().sort((a,b)=>jobTitle(a).localeCompare(jobTitle(b))).forEach(j=>{
+          const id = computeJobId(j);
 
-        locs[locKey]
-          .slice()
-          .sort((a,b)=>jobTitle(a).localeCompare(jobTitle(b)))
-          .forEach(j => {
-            const id = computeJobId(j);
-            const li = document.createElement("li");
-            li.className = "job";
+          const li=document.createElement("li"); li.className="job";
+          const a=document.createElement("a"); a.href=jobUrl(j); a.target="_blank"; a.rel="noopener noreferrer"; a.textContent=jobTitle(j);
+          const label=document.createElement("label"); label.className="applied-label";
+          const cb=document.createElement("input"); cb.type="checkbox"; cb.className="applied-toggle"; cb.setAttribute("data-job-id", id); cb.checked=!!appliedById[id];
+          const small=document.createElement("small"); small.textContent=" Applied";
 
-            const link = document.createElement("a");
-            link.href = jobUrl(j);
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-            link.textContent = jobTitle(j);
-
-            const meta = document.createElement("span");
-            meta.className = "job-meta";
-            meta.textContent = " — " + (j.notes || j.role || "");
-
-            const label = document.createElement("label");
-            label.className = "applied-label";
-
-            const cb = document.createElement("input");
-            cb.type = "checkbox";
-            cb.className = "applied-toggle";
-            cb.setAttribute("data-job-id", id);
-            cb.checked = !!appliedById[id];
-
-            const small = document.createElement("small");
-            small.textContent = " Applied";
-
-            label.appendChild(cb);
-            label.appendChild(small);
-
-            li.appendChild(link);
-            if (meta.textContent.trim() !== "—") li.appendChild(meta);
-            li.appendChild(label);
-            ul.appendChild(li);
-          });
+          label.appendChild(cb); label.appendChild(small);
+          li.appendChild(a); li.appendChild(label);
+          ul.appendChild(li);
+        });
 
         locDiv.appendChild(ul);
-        companySection.appendChild(locDiv);
+        section.appendChild(locDiv);
       });
 
-      container.appendChild(companySection);
+      container.appendChild(section);
     });
 
     $jobs.appendChild(container);
   }
 
-  // ========= Persistence =========
-  async function loadStatusFromKV() {
-    const res = await fetch(`${API_BASE}/api/status`, {
-      method: "GET",
-      credentials: "include"
-    });
+  // ===== Persistence =====
+  async function loadStatus(){
+    const res = await fetch(`${API_BASE}/api/status`, { method:"GET", credentials:"include" });
     if (res.status === 401) {
-      // Not signed in
       appliedById = {};
-      user = null;
       $signinBtn.style.display = "";
       $signedInWrap.style.display = "none";
+      showInfo("Sign in to save and sync your Applied status across devices.");
       return false;
     }
     if (!res.ok) throw new Error(`Status load failed: ${res.status}`);
     appliedById = await res.json();
-    // Optional: if your endpoint returns user info, set it here
-    // user = data.user ?? null;
     $signinBtn.style.display = "none";
     $signedInWrap.style.display = "";
-    if (user && user.login) $signedInAs.textContent = `Signed in as ${user.login}`;
+    clearInfo();
+    // Show whoami if you like
+    fetch(`${API_BASE}/api/whoami`, { credentials: "include" }).then(r=>r.json()).then(({user})=>{
+      if (user?.login) $signedInAs.textContent = `Signed in as ${user.login}`;
+    }).catch(()=>{});
     return true;
   }
 
-  function wireCheckboxSaves() {
-    document.addEventListener("change", (e) => {
+  function scheduleSave(){
+    clearTimeout(saveTimer);
+    setSaving("saving");
+    saveTimer = setTimeout(async ()=>{
+      await fetch(`${API_BASE}/api/status`, {
+        method:"PUT",
+        credentials:"include",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(appliedById)
+      });
+      setSaving("saved");
+    }, 300);
+  }
+
+  function wireCheckboxSaves(){
+    document.addEventListener("change", (e)=>{
       if (!e.target.matches('.applied-toggle[data-job-id]')) return;
       const id = e.target.getAttribute("data-job-id");
       appliedById[id] = !!e.target.checked;
@@ -252,68 +191,33 @@
     });
   }
 
-  function scheduleSave() {
-    clearTimeout(saveTimer);
-    setSaving("saving");
-    saveTimer = setTimeout(saveStatusToKV, SAVE_DEBOUNCE_MS);
-  }
-
-  async function saveStatusToKV() {
-    try {
-      const res = await fetch(`${API_BASE}/api/status`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(appliedById)
-      });
-      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
-      setSaving("saved");
-    } catch (err) {
-      setSaving("");
-      showError(err.message || String(err));
-    }
-  }
-
-  // ========= Auth buttons =========
-  function setupAuthButtons() {
-    $signinBtn.addEventListener("click", () => {
+  function setupAuthButtons(){
+    $signinBtn.addEventListener("click", ()=>{
       const redirect = encodeURIComponent(window.location.href);
       window.location.href = `${API_BASE}/auth/start?redirect=${redirect}`;
     });
-    $signoutBtn.addEventListener("click", () => {
+    $signoutBtn.addEventListener("click", ()=>{
       const redirect = encodeURIComponent(window.location.href);
       window.location.href = `${API_BASE}/auth/logout?redirect=${redirect}`;
     });
   }
 
-  // ========= Main =========
-  (async function init() {
-    try {
+  // ===== Init =====
+  (async function init(){
+    try{
       setupAuthButtons();
       wireCheckboxSaves();
 
-      // Load jobs.json first
-      const jr = await fetch(JOBS_JSON_URL, { credentials: "omit" });
-      if (!jr.ok) throw new Error(`Failed to load jobs.json (${jr.status})`);
-      jobs = await jr.json();
+      // load jobs.json
+      const r = await fetch(JOBS_JSON_URL, { credentials: "omit" });
+      if (!r.ok) throw new Error(`Failed to load jobs.json (${r.status})`);
+      jobs = await r.json();
 
-      // Try to hydrate status from KV (if signed in)
-      const signedIn = await loadStatusFromKV();
-
-      // Render UI (checkboxes reflect appliedById if signed in)
+      await loadStatus();
       renderJobs();
 
-      // If not signed in, show a gentle info
-      if (!signedIn) {
-        showInfo("Sign in to save and sync your Applied status across devices.");
-      } else {
-        clearInfo();
-      }
-
-      // Remove loading text
-      if ($loading) $loading.remove();
-
-    } catch (err) {
+      const loading = document.getElementById("loading"); if (loading) loading.remove();
+    }catch(err){
       showError(err.message || String(err));
     }
   })();
