@@ -6,6 +6,16 @@ const GH_AUTH_URL = "https://github.com/login/oauth/authorize";
 const GH_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GH_USER_API = "https://api.github.com/user";
 
+const ROUTE_ALIASES = new Map([
+  ["/oauth/login", "/auth/start"],
+  ["/login", "/auth/start"],
+  ["/oauth/callback", "/auth/callback"],
+  ["/callback", "/auth/callback"],
+  ["/github/callback", "/auth/callback"],
+  ["/oauth/logout", "/auth/logout"],
+  ["/logout", "/auth/logout"],
+]);
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -24,13 +34,14 @@ export default {
     }
 
     // ---------- Auth routes ----------
-    if (aliased === "/auth/start") {
-      // Ensure redirect is valid and fix jobs.htm if needed
-      const r = url.searchParams.get("redirect");
-      if (r) url.searchParams.set("redirect", fixRedirect(r, env));
-      // Rebuild the request with the fixed query string
-      return authStart(new Request(url.toString(), request), env);
-    }
+    // if (aliased === "/auth/start") {
+      // // Ensure redirect is valid and fix jobs.htm if needed
+      // const r = url.searchParams.get("redirect");
+      // if (r) url.searchParams.set("redirect", fixRedirect(r, env));
+      // //Rebuild the request with the fixed query string
+      // return authStart(new Request(url.toString(), request), env);
+    // }
+	if (aliased === "/auth/start")   return authStart(request, env);
 
     if (aliased === "/auth/callback") {
       return authCallback(request, env);
@@ -105,7 +116,7 @@ async function authCallback(request, env) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const ROUTE_ALIASES = new Map([
+/*   const ROUTE_ALIASES = new Map([
   // login aliases
   ["/oauth/login", "/auth/start"],
   ["/login", "/auth/start"],
@@ -118,7 +129,7 @@ async function authCallback(request, env) {
   // logout aliases
   ["/oauth/logout", "/auth/logout"],
   ["/logout", "/auth/logout"],
-]);
+]); */
 
   if (!code || !state) return new Response("Missing code/state", { status: 400 });
 
@@ -156,6 +167,8 @@ async function authCallback(request, env) {
 
   // Create a session
   const sid = crypto.randomUUID();
+  const redirectWithSid = appendSidToRedirect(redirect, sid);
+
   const session = { login: ghUser.login, id: ghUser.id };
   await env.JOBS_KV.put(`sess:${sid}`, JSON.stringify(session), { expirationTtl: SESSION_TTL_SECONDS });
 
@@ -164,7 +177,7 @@ async function authCallback(request, env) {
   headers.append("Set-Cookie", cookieSet(SESSION_COOKIE, sid, {
     httpOnly: true, secure: true, sameSite: "None", path: "/", maxAge: SESSION_TTL_SECONDS
   }));
-  headers.append("Location", redirect);
+  headers.append("Location", redirectWithSid);
 
   return new Response(null, { status: 302, headers });
 }
@@ -187,12 +200,21 @@ async function authLogout(request, env, origin) {
 
 /* --------------------- Session helper --------------------------- */
 async function getUserFromSession(request, env) {
+  // 1) Bearer token wins (works even with 3rd-party cookies blocked)
+  const bearerSid = getBearerSid(request);
+  if (bearerSid) {
+    const json = await env.JOBS_KV.get(`sess:${bearerSid}`);
+    if (json) { try { return JSON.parse(json); } catch {} }
+  }
+  // 2) Fallback to cookie (for browsers that still allow it)
   const cookie = request.headers.get("Cookie") || "";
-  const sid = cookieGet(cookie, SESSION_COOKIE);
-  if (!sid) return null;
-  const json = await env.JOBS_KV.get(`sess:${sid}`);
-  if (!json) return null;
-  try { return JSON.parse(json); } catch { return null; }
+  const sid = cookieGet(cookie, "sid");
+  if (sid) {
+    const json = await env.JOBS_KV.get(`sess:${sid}`);
+    if (json) { try { return JSON.parse(json); } catch {} }
+  }
+
+  return null;
 }
 
 /* --------------------- CORS helpers ----------------------------- */
@@ -256,5 +278,25 @@ function fixRedirect(redirect, env) {
     return u.toString();
   } catch {
     return fallback;
+  }
+}
+
+function getBearerSid(request) {
+  const auth = request.headers.get("Authorization") || "";
+  if (auth.startsWith("Bearer ")) return auth.slice(7).trim();
+  return null;
+}
+
+
+// Append sid in the URL **fragment** so it won't hit any server logs
+function appendSidToRedirect(redirect, sid) {
+  try {
+    const u = new URL(redirect);
+    const sp = new URLSearchParams(u.hash?.slice(1) || "");
+    sp.set("sid", sid);
+    u.hash = sp.toString(); // e.g. #sid=...
+    return u.toString();
+  } catch {
+    return redirect;
   }
 }

@@ -148,7 +148,7 @@
 
   // ===== Persistence =====
   async function loadStatus(){
-    const res = await fetch(`${API_BASE}/api/status`, { method:"GET", credentials:"include" });
+    const res = await fetch(`${API_BASE}/api/status`, { method:"GET", credentials:"include", headers: authHeaders() });
     if (res.status === 401) {
       appliedById = {};
       $signinBtn.style.display = "";
@@ -175,7 +175,7 @@
       await fetch(`${API_BASE}/api/status`, {
         method:"PUT",
         credentials:"include",
-        headers:{ "Content-Type":"application/json" },
+        headers:{ "Content-Type":"application/json", ...authHeaders() },
         body: JSON.stringify(appliedById)
       });
       setSaving("saved");
@@ -238,7 +238,33 @@
       window.location.href = `${API_BASE}/auth/logout?redirect=${redirect}`;
     });
   }
-  
+  (function bootstrapAuthToken(){
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const query = new URLSearchParams(location.search);
+
+  const sidFromHash = hash.get("sid");
+  const sidFromQuery = query.get("sid");
+  const sid = sidFromHash || sidFromQuery;
+
+  if (sid) {
+    // Persist for future requests
+    localStorage.setItem("jobtracker_sid", sid);
+
+    // Clean the URL so the token isn't left visible
+    hash.delete("sid"); query.delete("sid");
+    const clean =
+      location.origin + location.pathname +
+      (query.toString() ? "?" + query.toString() : "") +
+      (hash.toString() ? "#" + hash.toString() : "");
+    history.replaceState(null, "", clean);
+	  }
+	})();
+	function authHeaders() {
+	  const sid = localStorage.getItem("jobtracker_sid");
+	  const h = { };
+	  if (sid) h["Authorization"] = "Bearer " + sid;
+	  return h;
+	}
   </script>
 </body>
 </html>

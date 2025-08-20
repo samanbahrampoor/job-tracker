@@ -14,6 +14,7 @@ ALLOWED_ORIGIN = "https://samanbahrampoor.github.io"
 ALLOWED_LOGIN = "samanbahrampoor"
 # Optional informational URL if you reference it anywhere
 PUBLIC_URL = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
+GITHUB_CLIENT_ID = "Ov23lifby1KHaAcDNMn6"
 
 # ---------- Optional: separate DEV env so wrangler dev doesn't touch prod KV ----------
 # 1) Create another KV namespace in dashboard/CLI
