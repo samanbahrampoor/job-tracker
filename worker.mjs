@@ -10,24 +10,45 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = env.ALLOWED_ORIGIN || "https://samanbahrampoor.github.io";
+    const path = normalizePath(url.pathname);
+    const aliased = ROUTE_ALIASES.get(path) || path;
 
-    // --- CORS preflight for API routes ---
-    if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+    // CORS preflight for API
+    if (request.method === "OPTIONS" && aliased.startsWith("/api/")) {
       return preflight(origin);
     }
 
-    // --- Router ---
-    if (url.pathname === "/auth/start")  return authStart(request, env);
-    if (url.pathname === "/auth/callback") return authCallback(request, env);
-    if (url.pathname === "/auth/logout") return authLogout(request, env, origin);
+    // Friendly root: send folks to the Jobs page
+    if (aliased === "/") {
+      return Response.redirect(`${origin}/job-tracker/jobs.html`, 302);
+    }
 
-    if (url.pathname === "/api/status") {
+    // ---------- Auth routes ----------
+    if (aliased === "/auth/start") {
+      // Ensure redirect is valid and fix jobs.htm if needed
+      const r = url.searchParams.get("redirect");
+      if (r) url.searchParams.set("redirect", fixRedirect(r, env));
+      // Rebuild the request with the fixed query string
+      return authStart(new Request(url.toString(), request), env);
+    }
+
+    if (aliased === "/auth/callback") {
+      return authCallback(request, env);
+    }
+
+    if (aliased === "/auth/logout") {
+      return authLogout(request, env, origin);
+    }
+
+    // ---------- Status + whoami APIs ----------
+    if (aliased === "/api/status") {
       const user = await getUserFromSession(request, env);
       if (!user) {
         return withCORS(new Response(JSON.stringify({ error: "unauthorized" }), {
           status: 401, headers: { "Content-Type": "application/json" }
         }), origin);
       }
+
       const key = `user:${user.login}:applied`;
 
       if (request.method === "GET") {
@@ -40,7 +61,6 @@ export default {
       if (request.method === "PUT") {
         let body = {};
         try { body = await request.json(); } catch {}
-        if (typeof body !== "object" || body === null) body = {};
         await env.JOBS_KV.put(key, JSON.stringify(body));
         return withCORS(new Response(JSON.stringify({ ok: true }), {
           headers: { "Content-Type": "application/json" }
@@ -50,14 +70,14 @@ export default {
       return withCORS(new Response("Method not allowed", { status: 405 }), origin);
     }
 
-    if (url.pathname === "/api/whoami") {
+    if (aliased === "/api/whoami") {
       const user = await getUserFromSession(request, env);
       return withCORS(new Response(JSON.stringify({ user: user ? { login: user.login, id: user.id } : null }), {
         headers: { "Content-Type": "application/json" }
       }), origin);
     }
 
-    // Not found
+    // Fallback
     return new Response("Not found", { status: 404 });
   }
 };
@@ -85,6 +105,21 @@ async function authCallback(request, env) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  const ROUTE_ALIASES = new Map([
+  // login aliases
+  ["/oauth/login", "/auth/start"],
+  ["/login", "/auth/start"],
+
+  // callback aliases
+  ["/oauth/callback", "/auth/callback"],
+  ["/callback", "/auth/callback"],
+  ["/github/callback", "/auth/callback"],
+
+  // logout aliases
+  ["/oauth/logout", "/auth/logout"],
+  ["/logout", "/auth/logout"],
+]);
+
   if (!code || !state) return new Response("Missing code/state", { status: 400 });
 
   const redirect = await env.JOBS_KV.get(`oauth:state:${state}`);
@@ -202,4 +237,24 @@ async function getSecret(env, key) {
   const v = env[key];
   if (!v) throw new Error(`Missing secret/env: ${key}`);
   return v;
+}
+
+function normalizePath(p) {
+  if (!p) return "/";
+  // strip trailing slash except for root
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return p;
+}
+
+// Fix common redirect typos and validate URL
+function fixRedirect(redirect, env) {
+  const fallback = (env.ALLOWED_ORIGIN || "https://samanbahrampoor.github.io") + "/job-tracker/jobs.html";
+  try {
+    const u = new URL(redirect);
+    // repair /jobs.htm -> /jobs.html
+    if (u.pathname.endsWith("/jobs.htm")) u.pathname += "l";
+    return u.toString();
+  } catch {
+    return fallback;
+  }
 }

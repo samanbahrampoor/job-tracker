@@ -221,6 +221,24 @@
       showError(err.message || String(err));
     }
   })();
+  
+  if ($signinBtn) {
+    $signinBtn.addEventListener("click", () => {
+      // make sure redirect ends with jobs.html (not jobs.htm)
+      const fixed = window.location.href.replace(/jobs\.htm(\b|$)/, "jobs.html$1");
+      const redirect = encodeURIComponent(fixed);
+      window.location.href = `${API_BASE}/auth/start?redirect=${redirect}`;
+    });
+  }
+
+  if ($signoutBtn) {
+    $signoutBtn.addEventListener("click", () => {
+      const fixed = window.location.href.replace(/jobs\.htm(\b|$)/, "jobs.html$1");
+      const redirect = encodeURIComponent(fixed);
+      window.location.href = `${API_BASE}/auth/logout?redirect=${redirect}`;
+    });
+  }
+  
   </script>
 </body>
 </html>
