@@ -1,105 +1,104 @@
-import pandas as pd
+#!/usr/bin/env python3
+import hashlib
+import json
+import re
 from pathlib import Path
+import pandas as pd
 
-EXCEL_PATH = "jobs.xlsx"
-HTML_PATH = "jobs.html"
+# ---- Configure paths ----
+EXCEL_PATH = Path("jobs.xlsx")         # change if needed
+OUTPUT_JSON = Path("jobs.json")        # this is what you upload to KV
 
-def generate_html(df):
-    companies = df.groupby("Company")
+# Column mapping tolerance
+CANDIDATES = {
+    "title":   ["title", "Title", "Job Title"],
+    "company": ["company", "Company"],
+    "city":    ["city", "City"],
+    "country": ["country", "Country"],
+    "job_id":  ["job_id", "JobID", "ID", "Job Id", "Job id"],
+    "url":     ["url", "URL", "Link", "Job Link"],
+}
 
-    html = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Jobs Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
-    h1 { text-align: center; }
-    .filters { margin: 20px 0; text-align: center; }
-    .job { background: #fff; margin: 10px 0; padding: 15px; border-radius: 8px; 
-           box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    .company { font-weight: bold; font-size: 18px; margin-top: 20px; }
-    .title { font-size: 16px; font-weight: bold; }
-    .location { color: #555; }
-    .applied { margin-left: 10px; }
-  </style>
-</head>
-<body>
-  <h1>Jobs Dashboard</h1>
-  <div class="filters">
-    <label><input type="checkbox" id="filter-applied"> Show only applied</label>
-    <select id="filter-location">
-      <option value="">All locations</option>
-    </select>
-  </div>
-  <div id="jobs">
-"""
+def first_present(row, keys):
+    for k in keys:
+        if k in row and pd.notna(row[k]) and str(row[k]).strip() != "":
+            return str(row[k]).strip()
+    return ""
 
-    for company, company_df in companies:
-        html += f"<div class='company'>{company}</div>"
-        for _, row in company_df.iterrows():
-            job_id = str(row['JobID'])
-            title = row['Title']
-            loc = f"{row['Country']}, {row['City']}"
-            link = row['URL']
-            html += f"""
-            <div class="job" data-location="{loc}" data-id="{job_id}">
-              <div class="title"><a href="{link}" target="_blank">{title}</a></div>
-              <div class="location">{loc}</div>
-              <label class="applied">
-                <input type="checkbox" class="apply-box" data-id="{job_id}"> Applied
-              </label>
-            </div>
-            """
+def normalize_key_piece(s: str) -> str:
+    """Lowercase, trim, collapse spaces, strip non-alphanum (except -_)."""
+    s = s.lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = s.replace(" ", "-")
+    s = re.sub(r"[^a-z0-9\-_]+", "", s)
+    return s
 
-    html += """
-  </div>
-  <script>
-    document.querySelectorAll(".apply-box").forEach(box => {
-      const id = box.dataset.id;
-      box.checked = localStorage.getItem("applied-" + id) === "true";
-      box.addEventListener("change", () => {
-        localStorage.setItem("applied-" + id, box.checked);
-      });
-    });
+def short_hash(*parts) -> str:
+    data = "|".join([p or "" for p in parts]).encode("utf-8")
+    return hashlib.sha1(data).hexdigest()[:10]
 
-    const locations = [...new Set([...document.querySelectorAll(".job")]
-      .map(j => j.dataset.location))].sort();
-    const locSelect = document.getElementById("filter-location");
-    locations.forEach(loc => {
-      const opt = document.createElement("option");
-      opt.value = loc;
-      opt.textContent = loc;
-      locSelect.appendChild(opt);
-    });
-
-    function applyFilters() {
-      const appliedOnly = document.getElementById("filter-applied").checked;
-      const selectedLoc = locSelect.value;
-      document.querySelectorAll(".job").forEach(job => {
-        const checked = job.querySelector(".apply-box").checked;
-        const loc = job.dataset.location;
-        let visible = true;
-        if (appliedOnly && !checked) visible = false;
-        if (selectedLoc && loc !== selectedLoc) visible = false;
-        job.style.display = visible ? "" : "none";
-      });
-    }
-
-    document.getElementById("filter-applied").addEventListener("change", applyFilters);
-    locSelect.addEventListener("change", applyFilters);
-  </script>
-</body>
-</html>
-"""
-    return html
+def build_key(company: str, job_id: str, title: str, url: str) -> str:
+    c = normalize_key_piece(company)
+    j = normalize_key_piece(job_id)
+    if c and j:
+        return f"{c}|{j}"
+    # fallback if job_id missing: stable short hash of title+company+url
+    return f"{c}|{short_hash(title, company, url)}"
 
 def main():
+    if not EXCEL_PATH.exists():
+        raise SystemExit(f"Excel not found: {EXCEL_PATH.resolve()}")
+
+    # Load Excel (auto-detect header row)
     df = pd.read_excel(EXCEL_PATH)
-    html = generate_html(df)
-    Path(HTML_PATH).write_text(html, encoding="utf-8")
-    print(f"✅ Updated {HTML_PATH} from {EXCEL_PATH}")
+
+    # Build normalized records
+    records = []
+    for _, row in df.iterrows():
+        row_dict = row.to_dict()
+
+        title   = first_present(row_dict, CANDIDATES["title"])
+        company = first_present(row_dict, CANDIDATES["company"])
+        city    = first_present(row_dict, CANDIDATES["city"])
+        country = first_present(row_dict, CANDIDATES["country"])
+        job_id  = first_present(row_dict, CANDIDATES["job_id"])
+        url     = first_present(row_dict, CANDIDATES["url"])
+
+        # skip lines with no company+title
+        if not (company or title):
+            continue
+
+        key = build_key(company, job_id, title, url)
+
+        records.append({
+            "company": company,
+            "title": title,
+            "city": city,
+            "country": country,
+            "job_id": job_id,
+            "url": url,
+            "key": key,
+        })
+
+    # De-duplicate by key (keep first)
+    seen = set()
+    dedup = []
+    dups = []
+    for r in records:
+        if r["key"] in seen:
+            dups.append(r)
+            continue
+        seen.add(r["key"])
+        dedup.append(r)
+
+    # Save JSON
+    OUTPUT_JSON.write_text(json.dumps(dedup, ensure_ascii=False, indent=2))
+    print(f"✅ Wrote {len(dedup)} jobs to {OUTPUT_JSON} ({len(dups)} duplicates removed)")
+
+    if dups:
+        print("\nDuplicate keys (ignored):")
+        for r in dups[:20]:
+            print(f"  {r['key']}  ←  {r['company']} | {r['title']} | {r['job_id']}")
 
 if __name__ == "__main__":
     main()
