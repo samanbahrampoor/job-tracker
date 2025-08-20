@@ -1,39 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Tracker</title>
+  <link rel="stylesheet" href="style.css">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Jobs Tracker</title>
 </head>
 <body>
-  <h1>Jobs Tracker</h1>
+  <h1>Job Tracker</h1>
   <div id="jobs"></div>
-
   <script>
     const WORKER_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
+    let token = localStorage.getItem("token");
+    let appliedKeys = new Set();
 
-    async function getAppliedSet() {
-      const res = await fetch(WORKER_BASE + "/api/applied");
-      if (!res.ok) return new Set();
-      return new Set(await res.json());
+    async function loadApplied() {
+      const res = await fetch(WORKER_BASE + "/api/applied", {
+        headers: { Authorization: "Bearer " + token }
+      });
+      if (res.ok) appliedKeys = new Set(await res.json());
     }
 
-    async function setApplied(key, applied) {
+    async function toggleApplied(jobKey, applied) {
+      appliedKeys[applied ? "add" : "delete"](jobKey);
       await fetch(WORKER_BASE + "/api/applied", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, applied })
+        headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify({ key: jobKey, applied })
       });
     }
 
-    // demo render
-    async function render() {
-      const applied = await getAppliedSet();
-      document.getElementById("jobs").innerText = "Applied jobs loaded: " + applied.size;
+    function renderJobs(jobs) {
+      const container = document.getElementById("jobs");
+      container.innerHTML = "";
+      jobs.forEach(job => {
+        const card = document.createElement("div");
+        card.className = "job-card";
+        card.innerHTML = `
+          <h3>${job.title} @ ${job.company}</h3>
+          <p>${job.city}, ${job.country}</p>
+          <a href="${job.url}" target="_blank">Job Link</a>
+          <label><input type="checkbox" ${appliedKeys.has(job.key) ? "checked" : ""}> Applied</label>
+        `;
+        card.querySelector("input").addEventListener("change", e => toggleApplied(job.key, e.target.checked));
+        container.appendChild(card);
+      });
     }
-    render();
+
+    async function init() {
+      const hash = new URLSearchParams(location.hash.slice(1));
+      if (hash.has("token")) {
+        token = hash.get("token");
+        localStorage.setItem("token", token);
+        location.hash = "";
+      }
+      if (!token) return;
+
+      await loadApplied();
+      const jobsRes = await fetch(WORKER_BASE + "/api/jobs", { headers: { Authorization: "Bearer " + token } });
+      const jobs = await jobsRes.json();
+      renderJobs(jobs);
+    }
+    init();
   </script>
 </body>
 </html>
