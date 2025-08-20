@@ -24,14 +24,21 @@
       if (res.ok) appliedKeys = new Set(await res.json());
     }
 
-    async function toggleApplied(jobKey, applied) {
-      appliedKeys[applied ? "add" : "delete"](jobKey);
-      await fetch(WORKER_BASE + "/api/applied", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
-        body: JSON.stringify({ key: jobKey, applied })
-      });
-    }
+	function toggleApplied(key, checked) {
+	  const token = sessionStorage.getItem("jobs_token");
+	  fetch(WORKER_BASE + "/api/applied", {
+		method: "POST",
+		headers: {
+		  "Authorization": "Bearer " + token,
+		  "Content-Type": "application/json"
+		},
+		body: JSON.stringify({ key, applied: checked })
+	  })
+	  .then(r => r.json())
+	  .then(res => console.log("Saved", key, checked, res))
+	  .catch(err => console.error("Error saving applied:", err));
+	}
+
 
     function renderJobs(jobs) {
       const container = document.getElementById("jobs");
