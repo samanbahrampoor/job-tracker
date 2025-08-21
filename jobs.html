@@ -266,5 +266,100 @@
 	  return h;
 	}
   </script>
+  
+  <script>
+  // ===== 1) Capture sid once after OAuth and clean URL =====
+  (function(){
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const query = new URLSearchParams(location.search);
+    const sid = hash.get("sid") || query.get("sid");
+    if (sid) {
+      localStorage.setItem("jobtracker_sid", sid);
+      hash.delete("sid"); query.delete("sid");
+      const clean = location.origin + location.pathname +
+                    (query.toString() ? "?" + query.toString() : "") +
+                    (hash.toString() ? "#" + hash.toString() : "");
+      history.replaceState(null, "", clean);
+    }
+  })();
+
+  // ===== 2) API helper =====
+  const API_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
+  function authHeaders() {
+    const sid = localStorage.getItem("jobtracker_sid");
+    const h = {};
+    if (sid) h["Authorization"] = "Bearer " + sid; // works even if 3rd-party cookies are blocked
+    return h;
+  }
+
+  // ===== 3) Stable ID helpers (used if your markup lacks data-job-id) =====
+  function hashId(str){
+    let h=2166136261>>>0;
+    for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); }
+    h+=h<<13; h^=h>>>7; h+=h<<3; h^=h>>>17; h+=h<<5;
+    return (h>>>0).toString(36);
+  }
+  function getJobId(cb){
+    if (cb.dataset.jobId) return cb.dataset.jobId;
+    const li = cb.closest("li") || cb.closest("tr") || cb.closest(".job") || document.body;
+    const a  = li.querySelector("a[href]");           // job link/title if present
+    const title = a ? a.textContent.trim() : li.textContent.slice(0,120).trim();
+    const url   = a ? a.href : "";
+    const companyEl = li.querySelector(".company,[data-company]");
+    const locEl     = li.querySelector(".location,[data-location]");
+    const company = companyEl ? companyEl.textContent.trim() : "";
+    const loc     = locEl ? locEl.textContent.trim() : "";
+    const id = hashId(`${company}|${title}|${loc}|${url}`.toLowerCase());
+    cb.dataset.jobId = id; // cache for next time
+    return id;
+  }
+
+  // ===== 4) Sync logic =====
+  let appliedById = {};
+  async function loadStatus(){
+    const res = await fetch(`${API_BASE}/api/status`, {
+      method: "GET",
+      credentials: "include",
+      headers: authHeaders(),
+    });
+    appliedById = res.ok ? await res.json() : {};
+  }
+
+  function applyToUI(){
+    // If you have a specific class for the "Applied" checkboxes, replace the selector below
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      const id = getJobId(cb);
+      cb.checked = !!appliedById[id];
+    });
+  }
+
+  let saveTimer;
+  function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveStatus, 300); }
+  async function saveStatus(){
+    await fetch(`${API_BASE}/api/status`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(appliedById),
+    });
+  }
+
+  // keep KV in sync when a checkbox is toggled
+  document.addEventListener("change", (e)=>{
+    if (!e.target.matches('input[type="checkbox"]')) return;
+    const id = getJobId(e.target);
+    appliedById[id] = e.target.checked;
+    scheduleSave();
+  });
+
+  // ===== 5) Init on load =====
+  (async function(){
+    await loadStatus();
+    applyToUI();
+    // (optional) log so you can see it in DevTools the first time
+    console.log("Hydrated from KV:", appliedById);
+  })();
+</script>
+
 </body>
 </html>

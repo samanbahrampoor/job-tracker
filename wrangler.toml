@@ -9,7 +9,7 @@ kv_namespaces = [
 
 [vars]
 # Allow calls from your GitHub Pages origin
-ALLOWED_ORIGIN = "https://samanbahrampoor.github.io"
+ALLOWED_ORIGIN = "https://samanbahrampoor.github.io,http://localhost:5173"
 # Optional allow-list: only this GitHub username may sign in (remove to allow anyone)
 ALLOWED_LOGIN = "samanbahrampoor"
 # Optional informational URL if you reference it anywhere

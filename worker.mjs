@@ -87,6 +87,14 @@ export default {
         headers: { "Content-Type": "application/json" }
       }), origin);
     }
+	
+	if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+		return preflight(request, env);
+	}
+
+	// when returning API responses:
+	return withCORS(new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" }}), request, env);
+
 
     // Fallback
     return new Response("Not found", { status: 404 });
@@ -218,10 +226,20 @@ async function getUserFromSession(request, env) {
 }
 
 /* --------------------- CORS helpers ----------------------------- */
-function preflight(origin) {
+function pickAllowedOrigin(request, env) {
+  const reqOrigin = request.headers.get("Origin") || "";
+  const allowed = (env.ALLOWED_ORIGIN || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+  return allowed.includes(reqOrigin) ? reqOrigin : allowed[0] || "*";
+}
+
+function preflight(request, env) {
+  const o = pickAllowedOrigin(request, env);
   return new Response(null, {
     headers: {
-      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Origin": o,
       "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
@@ -229,12 +247,14 @@ function preflight(origin) {
     },
   });
 }
-function withCORS(res, origin) {
-  const headers = new Headers(res.headers);
-  headers.set("Access-Control-Allow-Origin", origin);
-  headers.set("Access-Control-Allow-Credentials", "true");
-  headers.append("Vary", "Origin");
-  return new Response(res.body, { ...res, headers });
+
+function withCORS(res, request, env) {
+  const o = pickAllowedOrigin(request, env);
+  const h = new Headers(res.headers);
+  h.set("Access-Control-Allow-Origin", o);
+  h.set("Access-Control-Allow-Credentials", "true");
+  h.append("Vary", "Origin");
+  return new Response(res.body, { ...res, headers: h });
 }
 
 /* --------------------- Cookie helpers --------------------------- */
