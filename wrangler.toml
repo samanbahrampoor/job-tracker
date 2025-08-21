@@ -1,12 +1,18 @@
-name = "job-tracker-oauth"
-main = "worker.mjs"
-compatibility_date = "2024-08-01"
+# wrangler.toml
+# Update the kv_namespaces IDs with your actual values from:
+#   wrangler kv:namespace create JOB_STATE
+# (Use a separate preview_id for dev if you like.)
 
-[vars]
-ALLOWED_LOGIN  = "samanbahrampoor"
-ALLOWED_ORIGIN = "https://samanbahrampoor.github.io"
-PUBLIC_URL     = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
+name = "job-tracker-worker"
+main = "worker.mjs"
+compatibility_date = "2025-08-01"
 
 [[kv_namespaces]]
-binding = "JOBS_KV"
-id = "c1ecd7041c424e1588508bfe8f6f3288"
+binding = "JOB_STATE"
+id = "REPLACE_WITH_PROD_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_DEV_NAMESPACE_ID"
+
+# If you use a custom domain/route, uncomment and set a route:
+# routes = [
+#   { pattern = "api.samanb.dev/api/*", zone_name = "samanb.dev" }
+# ]
