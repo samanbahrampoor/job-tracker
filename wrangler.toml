@@ -9,8 +9,8 @@ compatibility_date = "2025-08-01"
 
 [[kv_namespaces]]
 binding = "JOB_STATE"
-id = "REPLACE_WITH_PROD_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_DEV_NAMESPACE_ID"
+id = "b581e095c8be4d8d9ac46b9f9639fe52"
+preview_id = "01ec05a83b004714a613d03359d2ed21"
 
 # If you use a custom domain/route, uncomment and set a route:
 # routes = [

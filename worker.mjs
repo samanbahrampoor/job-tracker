@@ -1,14 +1,15 @@
-// worker.mjs
-// Minimal API to persist per-user "applied" status in Cloudflare KV.
-// Endpoints:
-//   GET  /api/state           -> { applied: { [jobId]: { applied: boolean, updatedAt: number } } }
-//   POST /api/state           -> body { jobId, applied } -> { ok: true }
-// Notes:
-// - Replace getUserIdFromRequest() with your existing auth/session logic if needed.
-// - Set ORIGIN to your GitHub Pages origin.
-// - Ensure KV binding 'JOB_STATE' exists in wrangler.toml.
+// worker.mjs (v2 with diagnostics and multi-origin support)
+const ALLOWED_ORIGINS = [
+  "https://samanbahrampoor.github.io",
+  // Add dev origins if needed:
+  // "http://localhost:5500",
+  // "http://127.0.0.1:5500",
+];
 
-const ORIGIN = "https://samanbahrampoor.github.io"
+function pickOrigin(origin) {
+  if (!origin) return ALLOWED_ORIGINS[0];
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
 
 function corsHeaders(origin) {
   return {
@@ -16,67 +17,77 @@ function corsHeaders(origin) {
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Vary": "Origin"
-  }
+    "Vary": "Origin",
+  };
 }
 
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url)
-    const origin = request.headers.get("Origin") || ORIGIN
-    const headers = corsHeaders(origin)
+    const url = new URL(request.url);
+    const origin = pickOrigin(request.headers.get("Origin"));
+    const headers = corsHeaders(origin);
 
-    // Preflight
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers })
+      return new Response(null, { status: 204, headers });
     }
 
-    // Only allow our site
-    if (origin !== ORIGIN && origin !== null) {
-      return new Response("Forbidden", { status: 403, headers })
+    // Only allow requests from known origins (except direct curl which has no Origin)
+    const reqOrigin = request.headers.get("Origin");
+    if (reqOrigin && !ALLOWED_ORIGINS.includes(reqOrigin)) {
+      return new Response("Forbidden origin", { status: 403, headers });
     }
 
-    // Require login (adapt this to your existing auth/session)
-    const userId = await getUserIdFromRequest(request, env)
+    // Public ping (no auth)
+    if (url.pathname === "/api/ping") {
+      return json({ ok: true, time: Date.now() }, 200, headers);
+    }
+
+    // Whoami route to help debugging auth
+    if (url.pathname === "/api/whoami") {
+      const userId = await getUserIdFromRequest(request, env);
+      return json({ userId: userId || null }, 200, headers);
+    }
+
+    // below requires auth
+    const userId = await getUserIdFromRequest(request, env);
     if (!userId) {
-      return json({ error: "unauthorized" }, 401, headers)
+      return json({ error: "unauthorized" }, 401, headers);
     }
 
     if (url.pathname === "/api/state" && request.method === "GET") {
-      const key = `user:${userId}`
-      const doc = await env.JOB_STATE.get(key, "json")
-      return json(doc || { applied: {} }, 200, headers)
+      const key = `user:${userId}`;
+      const doc = await env.JOB_STATE.get(key, "json");
+      return json(doc || { applied: {} }, 200, headers);
     }
 
     if (url.pathname === "/api/state" && request.method === "POST") {
-      let body
-      try { body = await request.json() } catch {}
-      const jobId = body?.jobId
-      const applied = body?.applied
+      let body;
+      try { body = await request.json(); } catch {}
+      const jobId = body?.jobId;
+      const applied = body?.applied;
       if (!jobId || typeof applied !== "boolean") {
-        return json({ error: "bad_request" }, 400, headers)
+        return json({ error: "bad_request" }, 400, headers);
       }
-      const key = `user:${userId}`
-      const doc = (await env.JOB_STATE.get(key, "json")) || { applied: {} }
-      doc.applied[jobId] = { applied, updatedAt: Date.now() }
-      await env.JOB_STATE.put(key, JSON.stringify(doc))
-      return json({ ok: true }, 200, headers)
+      const key = `user:${userId}`;
+      const doc = (await env.JOB_STATE.get(key, "json")) || { applied: {} };
+      doc.applied[jobId] = { applied, updatedAt: Date.now() };
+      await env.JOB_STATE.put(key, JSON.stringify(doc));
+      return json({ ok: true }, 200, headers);
     }
 
-    return new Response("Not found", { status: 404, headers })
+    return new Response("Not found", { status: 404, headers });
   },
-}
+};
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { "Content-Type": "application/json", ...headers },
-  })
+  });
 }
 
-// --- Auth helper ---
-// This tries a few common patterns to find a user id.
-// Replace with your actual logic (e.g., verify a JWT or read your session from KV).
+// Replace with your own session/JWT verification.
+// This version reads a cookie named "session" and expects a KV record at session:<id> = { userId }
 async function getUserIdFromRequest(request, env) {
   const cookies = Object.fromEntries(
     (request.headers.get("Cookie") || "")
@@ -84,22 +95,20 @@ async function getUserIdFromRequest(request, env) {
       .map(v => v.trim())
       .filter(Boolean)
       .map(kv => {
-        const i = kv.indexOf("=")
-        return [decodeURIComponent(kv.slice(0, i)), decodeURIComponent(kv.slice(i+1))]
+        const i = kv.indexOf("=");
+        return [decodeURIComponent(kv.slice(0, i)), decodeURIComponent(kv.slice(i+1))];
       }),
-  )
+  );
 
-  // Prefer an explicit GitHub username/id if you set it
-  const ghUser = cookies["gh_user"] || cookies["github_user"] || cookies["user"] || cookies["uid"]
-  if (ghUser) return ghUser
+  // direct username cookie also supported
+  const ghUser = cookies["gh_user"] || cookies["github_user"] || cookies["user"] || cookies["uid"];
+  if (ghUser) return ghUser;
 
-  // If you have a session cookie, try to resolve it from KV
-  const sessionId = cookies["session"]
+  // session cookie
+  const sessionId = cookies["session"];
   if (sessionId) {
-    const sess = await env.JOB_STATE.get(`session:${sessionId}`, "json")
-    if (sess?.userId) return sess.userId
+    const sess = await env.JOB_STATE.get(`session:${sessionId}`, "json");
+    if (sess?.userId) return sess.userId;
   }
-
-  // TODO: Add JWT verification here if your flow sets a token instead of a session.
-  return null
+  return null;
 }

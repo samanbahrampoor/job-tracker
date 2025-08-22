@@ -155,5 +155,11 @@ document.getElementById('loginBtn').addEventListener('click', ()=>{
 document.getElementById('logoutBtn').addEventListener('click', ()=>{ clearToken(); location.reload(); });
 document.addEventListener('DOMContentLoaded', refresh);
 </script>
+<script>
+  // Set to your deployed Worker URL
+  window.JOB_TRACKER_API_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
+</script>
+<script src="sync-applied.js"></script>
+
 </body>
 </html>
