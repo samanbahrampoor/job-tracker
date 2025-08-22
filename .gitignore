@@ -1,1 +1,7 @@
 ./ignore/*
+./wrangler/*
+*.mjs
+*.cls
+*.py
+*.toml
+*.xlsx
