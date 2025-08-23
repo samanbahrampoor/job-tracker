@@ -7,6 +7,8 @@ account_id = "b3a29b3d10fd204732654ac513f0bb56"
 ALLOWED_LOGIN  = "samanbahrampoor"
 ALLOWED_ORIGIN = "https://samanbahrampoor.github.io"
 PUBLIC_URL     = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
+APP_REDIRECT = "https://samanbahrampoor.github.io/job-tracker/jobs.html"
+OAUTH_REDIRECT_URI = "https://job-tracker-oauth.saman-bahrampoor.workers.dev/auth/github/callback"
 
 [[kv_namespaces]]
 binding = "JOBS_KV"
