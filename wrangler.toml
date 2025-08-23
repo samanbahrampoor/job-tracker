@@ -1,6 +1,7 @@
 name = "job-tracker-oauth"
 main = "worker.mjs"
 compatibility_date = "2024-08-01"
+account_id = "b3a29b3d10fd204732654ac513f0bb56"
 
 [vars]
 ALLOWED_LOGIN  = "samanbahrampoor"
@@ -10,3 +11,17 @@ PUBLIC_URL     = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"
 [[kv_namespaces]]
 binding = "JOBS_KV"
 id = "c1ecd7041c424e1588508bfe8f6f3288"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "job-tracker"
+database_id = "171bff30-f06a-498f-9aa8-dbfccccd49aa"
+
+[durable_objects]
+bindings = [
+  { name = "APP_SYNC", class_name = "AppSync" }
+]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["AppSync"]

@@ -1,159 +1,158 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jobs Dashboard</title>
-<style>
-:root{--bg:#0f172a;--card:#0b1223;--muted:#94a3b8;--text:#e2e8f0;--accent:#60a5fa;--border:#1f2a44}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#0b1020 0%,#0f172a 50%,#0a0f1f 100%);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-header{position:sticky;top:0;z-index:10;backdrop-filter:blur(6px);background:rgba(10,15,31,.7);border-bottom:1px solid var(--border)}
-.header-inner{max-width:1100px;margin:0 auto;padding:16px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
-h1{margin:0;font-size:28px;letter-spacing:.2px}.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto}
-select,input[type="search"]{background:#0a1120;border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:12px;min-width:200px;outline:none}
-input[type="search"]::placeholder{color:#7c8aa6}button{border:1px solid var(--border);background:#0b1328;color:#cbd5e1;padding:10px 12px;border-radius:12px;cursor:pointer}
-button.primary{background:#1d4ed8;border-color:#1d4ed8;color:white}.badge{font-size:12px;padding:6px 10px;border-radius:999px;background:#0b1328;border:1px solid var(--border);color:#cbd5e1}
-.container{max-width:1100px;margin:0 auto;padding:20px 16px 36px}.section{margin-top:18px}.section h2{margin:22px 0 6px;font-size:18px;font-weight:700;color:#c7d2fe}
-.section h3{margin:12px 0 6px;font-size:14px;font-weight:700;color:#a5b4fc;opacity:.9}.section h4{margin:8px 0 10px;font-size:13px;font-weight:700;color:#93c5fd;opacity:.9}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}.card{background:linear-gradient(180deg,rgba(14,22,43,.9),rgba(12,17,33,.9));border:1px solid var(--border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.card a{color:var(--accent);text-decoration:none;font-weight:600}.meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}.tag{padding:2px 8px;border-radius:999px;background:#0d1731;border:1px solid var(--border)}
-.toggle{display:inline-flex;align-items:center;gap:8px;user-select:none;cursor:pointer;width:fit-content}.toggle input{display:none}
-.switch{width:40px;height:22px;border-radius:999px;background:#0f1a35;border:1px solid var(--border);position:relative;transition:.2s}.knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#7c8aa6;transition:.2s}
-input:checked + .switch{background:linear-gradient(90deg,#2563eb,#06b6d4);border-color:transparent}input:checked + .switch .knob{left:20px;background:white}
-.apply-line{display:flex;align-items:center;justify-content:space-between;gap:10px}hr.sep{border:0;border-top:1px dashed var(--border);margin:12px 0 18px;opacity:.6}
-.notice{background:#0b1328;border:1px solid var(--border);padding:14px;border-radius:12px}footer{text-align:center;color:#8aa0c6;padding:24px;border-top:1px solid var(--border);background:rgba(10,15,31,.4)}
-</style>
+  <meta charset="UTF-8">
+  <title>Job Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    .signin { margin-bottom: 1rem; }
+    .job-group { margin-bottom: 2rem; }
+    .job { border: 1px solid #ccc; border-radius: 8px; padding: 0.5rem; margin: 0.25rem 0; }
+    .job-header { font-weight: bold; }
+    .job small { color: #666; }
+    label { display: flex; align-items: center; gap: 0.5rem; }
+  </style>
 </head>
 <body>
-<header><div class="header-inner"><h1>Jobs Dashboard</h1>
-  <div class="controls">
-    <input id="q" type="search" placeholder="Search title/company/city/country/id">
-    <select id="appliedFilter"><option value="all">All</option><option value="applied">Applied</option><option value="not_applied">Not applied</option></select>
-    <select id="countryFilter"><option value="">All countries</option></select>
-    <select id="cityFilter"><option value="">All cities</option></select>
-    <span class="badge" id="count"></span>
-    <button id="loginBtn" class="primary">Sign in with GitHub</button>
-    <button id="logoutBtn" style="display:none">Sign out</button>
+  <h1>Job Tracker</h1>
+
+  <div class="signin">
+    <button id="signin">Sign in with GitHub</button>
+    <span id="user-info"></span>
   </div>
-</div></header>
-<main class="container">
-  <div id="signedOut" class="notice" style="display:none"><strong>Private area.</strong> Please sign in with GitHub to view jobs.</div>
-  <div id="root"></div>
-</main>
-<footer>Applied status is saved locally per user.</footer>
-<script>
-const WORKER_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
-const APP_URL = "https://samanbahrampoor.github.io/job-tracker/jobs.html";
 
-function saveToken(tok){ sessionStorage.setItem("jobs_token", tok); }
-function getToken(){ return sessionStorage.getItem("jobs_token"); }
-function clearToken(){ sessionStorage.removeItem("jobs_token"); }
+  <div id="jobs"></div>
 
-(function captureTokenFromHash(){
-  const m = location.hash.match(/[#&]token=([^&]+)/);
-  if (m){ saveToken(decodeURIComponent(m[1])); history.replaceState(null,"",location.pathname+location.search); }
-})();
+  <script>
+    const WORKER_BASE = "https://<YOUR-WORKER-URL>"; // e.g. https://job-tracker.yourname.workers.dev
+    let currentUser = null;
+    let appliedMap = new Map();
 
-let USER = null;
-function storagePrefix(){ return USER ? ('applied::'+USER.login+'::') : 'applied::anon::'; }
-function storageKey(key){ return storagePrefix() + key; }
-function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
-function normalize(s){ return (s||'').toLowerCase(); }
-
-function groupData(data){ const out={}; for (const r of data){const c=r.company||r.Company||'—',co=r.country||r.Country||'—',ci=r.city||r.City||'—'; (out[c]=out[c]||{}); (out[c][co]=out[c][co]||{}); (out[c][co][ci]=out[c][co][ci]||[]); out[c][co][ci].push(r);} return out; }
-function uniqueSorted(a){ return [...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y)); }
-
-function computeFilters(data){ const ctry=uniqueSorted(data.map(d=>d.country||d.Country)), city=uniqueSorted(data.map(d=>d.city||d.City));
-  document.getElementById('countryFilter').innerHTML = '<option value="">All countries</option>' + ctry.map(c=>`<option>${c}</option>`).join('');
-  document.getElementById('cityFilter').innerHTML = '<option value="">All cities</option>' + city.map(c=>`<option>${c}</option>`).join('');
-}
-
-function applyFilters(data){
-  const q=normalize(document.getElementById('q').value);
-  const applied=document.getElementById('appliedFilter').value;
-  const country=document.getElementById('countryFilter').value;
-  const city=document.getElementById('cityFilter').value;
-  return data.filter(d=>{
-    const title=d.title||d.Title, company=d.company||d.Company, cityv=d.city||d.City, countryv=d.country||d.Country, id=d.job_id||d.JobID||d.id;
-    if(q){
-      const hit=[title,company,cityv,countryv,id].some(v=>normalize(String(v||'')).includes(q));
-      if(!hit) return false;
+    // Utility: create a stable job_id
+    function jobId(job) {
+      // Assume jobs.json has a unique "id" field, otherwise derive one
+      return job.id || btoa(unescape(encodeURIComponent(job.company + "|" + job.title + "|" + job.city)));
     }
-    if(country && countryv!==country) return false;
-    if(city && cityv!==city) return false;
-    const k=storageKey((d.key)||(company+'|'+id));
-    const isApplied=localStorage.getItem(k)==='1';
-    if(applied==='applied' && !isApplied) return false;
-    if(applied==='not_applied' && isApplied) return false;
-    return true;
-  });
-}
 
-function render(data){
-  const root=document.getElementById('root'); root.innerHTML=''; const grouped=groupData(data); let total=0;
-  Object.keys(grouped).forEach(company=>{
-    const section=el('section','section'); section.appendChild(el('h2','',company));
-    Object.keys(grouped[company]).forEach(country=>{
-      section.appendChild(el('h3','', 'Country: '+country));
-      Object.keys(grouped[company][country]).forEach(city=>{
-        section.appendChild(el('h4','', 'City: '+city)); const grid=el('div','grid'); const jobs=grouped[company][country][city];
-        jobs.forEach(job=>{
-          const title=job.title||job.Title||'Unknown Title'; const url=job.url||job.Link||'#'; const company=job.company||job.Company||'—'; const cityv=job.city||job.City||''; const countryv=job.country||job.Country||''; const id=job.job_id||job.JobID||job.id||'—';
-          const card=el('div','card'); const titleEl=el('div','', `<a href="${url}" target="_blank" rel="noopener">${title}</a>`);
-          const meta=el('div','meta'); meta.appendChild(el('span','tag',company)); meta.appendChild(el('span','tag', cityv ? (cityv+', '+(countryv||'')) : (countryv||'Location: —'))); meta.appendChild(el('span','tag','ID: '+id));
-          const toggle=el('label','toggle apply-line'); const cb=el('input'); cb.type='checkbox'; const key=job.key||(company+'|'+id); cb.dataset.key=key; cb.checked=localStorage.getItem(storageKey(key))==='1';
-          cb.addEventListener('change', ()=>{ if(cb.checked) localStorage.setItem(storageKey(key),'1'); else localStorage.removeItem(storageKey(key)); });
-          const sw=el('span','switch'); const knob=el('span','knob'); sw.appendChild(knob); const lab=el('span','', 'Applied');
-          toggle.appendChild(cb); toggle.appendChild(sw); toggle.appendChild(lab);
-          card.appendChild(titleEl); card.appendChild(meta); card.appendChild(toggle); grid.appendChild(card); total+=1; });
-        section.appendChild(grid); section.appendChild(el('hr','sep')); }); });
-    root.appendChild(section); });
-  document.getElementById('count').textContent = total + ' roles';
-}
+    // Fetch user info
+    async function fetchUser() {
+      const res = await fetch(`${WORKER_BASE}/api/me`, { credentials: "include" });
+      if (res.ok) {
+        const { user } = await res.json();
+        currentUser = user;
+        document.getElementById("user-info").textContent = `Signed in as ${user.email || user.id}`;
+      } else {
+        currentUser = null;
+        document.getElementById("user-info").textContent = "Not signed in";
+      }
+    }
 
-async function fetchJSON(path){
-  const token = getToken();
-  const r = await fetch(path, { headers: token ? { 'Authorization': 'Bearer '+token } : {} });
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  return await r.json();
-}
+    // Fetch applied statuses
+    async function fetchApplications() {
+      if (!currentUser) return;
+      const res = await fetch(`${WORKER_BASE}/api/applications`, { credentials: "include" });
+      if (res.ok) {
+        const { items } = await res.json();
+        appliedMap = new Map(items.map(x => [x.job_id, !!x.applied]));
+      }
+    }
 
-async function refresh(){
-  const token = getToken();
-  if(!token){
-    document.getElementById('signedOut').style.display='block';
-    document.getElementById('loginBtn').style.display='inline-block';
-    document.getElementById('logoutBtn').style.display='none';
-    document.getElementById('root').innerHTML='';
-    document.getElementById('count').textContent='';
-    return;
-  }
-  try{
-    const session = await fetchJSON(WORKER_BASE+'/api/session');
-    USER = session.authenticated ? session.user : null;
-    if(!USER){ clearToken(); return refresh(); }
-    document.getElementById('signedOut').style.display='none';
-    document.getElementById('loginBtn').style.display='none';
-    document.getElementById('logoutBtn').style.display='inline-block';
-    const data = await fetchJSON(WORKER_BASE+'/api/jobs');
-    computeFilters(data);
-    const run=()=>render(applyFilters(data));
-    ['q','appliedFilter','countryFilter','cityFilter'].forEach(id=>{
-      document.getElementById(id).addEventListener('input', run);
-      document.getElementById(id).addEventListener('change', run);
+    // Toggle a job’s applied state
+    async function setApplied(job_id, applied) {
+      if (!currentUser) {
+        alert("Please sign in first.");
+        return;
+      }
+      await fetch(`${WORKER_BASE}/api/applications/${encodeURIComponent(job_id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ applied })
+      });
+    }
+
+    // Render jobs grouped by company and location
+    async function renderJobs() {
+      const res = await fetch("jobs.json");
+      const jobs = await res.json();
+
+      const container = document.getElementById("jobs");
+      container.innerHTML = "";
+
+      // Group by company → location
+      const groups = {};
+      for (const job of jobs) {
+        const cid = job.company || "Unknown Company";
+        const loc = (job.country || "Unknown Country") + " / " + (job.city || "Unknown City");
+        groups[cid] = groups[cid] || {};
+        groups[cid][loc] = groups[cid][loc] || [];
+        groups[cid][loc].push(job);
+      }
+
+      for (const [company, locs] of Object.entries(groups)) {
+        const div = document.createElement("div");
+        div.className = "job-group";
+        const h2 = document.createElement("h2");
+        h2.textContent = company;
+        div.appendChild(h2);
+
+        for (const [loc, jobsArr] of Object.entries(locs)) {
+          const h3 = document.createElement("h3");
+          h3.textContent = loc;
+          div.appendChild(h3);
+
+          for (const job of jobsArr) {
+            const jid = jobId(job);
+            const wrapper = document.createElement("div");
+            wrapper.className = "job";
+
+            const title = document.createElement("div");
+            title.className = "job-header";
+            title.textContent = job.title || "Untitled Job";
+
+            const meta = document.createElement("small");
+            meta.textContent = job.url ? job.url : "";
+
+            const label = document.createElement("label");
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = appliedMap.get(jid) || false;
+            cb.addEventListener("change", () => setApplied(jid, cb.checked));
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode("Applied"));
+
+            wrapper.appendChild(title);
+            if (job.url) {
+              const a = document.createElement("a");
+              a.href = job.url;
+              a.target = "_blank";
+              a.textContent = job.url;
+              wrapper.appendChild(a);
+            }
+            wrapper.appendChild(meta);
+            wrapper.appendChild(label);
+            div.appendChild(wrapper);
+          }
+        }
+
+        container.appendChild(div);
+      }
+    }
+
+    // Init
+    document.getElementById("signin").addEventListener("click", () => {
+      window.location.href = `${WORKER_BASE}/auth/github/start`;
     });
-    run();
-  }catch(e){
-    document.getElementById('signedOut').style.display='block';
-    document.getElementById('root').innerHTML='<div class="notice">Failed to load jobs.</div>';
-  }
-}
 
-document.getElementById('loginBtn').addEventListener('click', ()=>{
-  location.href = WORKER_BASE + '/oauth/login?redirect=' + encodeURIComponent(APP_URL);
-});
-document.getElementById('logoutBtn').addEventListener('click', ()=>{ clearToken(); location.reload(); });
-document.addEventListener('DOMContentLoaded', refresh);
-</script>
+    (async () => {
+      await fetchUser();
+      if (currentUser) {
+        await fetchApplications();
+      }
+      await renderJobs();
+    })();
+  </script>
 </body>
 </html>
