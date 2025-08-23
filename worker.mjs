@@ -1,41 +1,41 @@
 // worker.mjs
 //
-// Drop-in Cloudflare Worker that:
-// 1) Performs GitHub OAuth (start + callback) and sets a signed session cookie (HS256 JWT)
-// 2) Exposes JSON APIs for per-user job "applied" state stored in D1
-//    - GET  /api/me
-//    - GET  /api/applications
-//    - PUT  /api/applications/:job_id   body: { applied: true|false }
-// 3) Handles CORS for your GitHub Pages origin
+// Cloudflare Worker for Job Tracker
+// - GitHub OAuth (start + callback) and signed session cookie (HS256 JWT)
+// - CORS for GitHub Pages
+// - D1-backed API for per-user "applied" job status
+// - Alias route /oauth/login?redirect=... for compatibility
 //
-// REQUIRED BINDINGS (wrangler.toml):
-// ------------------------------------------------------
-// account_id = "<your account id>"
-// name = "<your worker name>"
+// REQUIRED ENV & BINDINGS (wrangler.toml)
+//
+// name = "job-tracker-oauth"
 // main = "worker.mjs"
+// compatibility_date = "2024-11-01"
+// account_id = "<your account id>"
+//
+// [vars]
+// PAGES_ORIGIN = "https://samanbahrampoor.github.io"
+// APP_REDIRECT  = "https://samanbahrampoor.github.io/job-tracker/jobs.html"
+// OAUTH_REDIRECT_URI = "https://job-tracker-oauth.<your-subdomain>.workers.dev/auth/github/callback"
 //
 // [[d1_databases]]
 // binding = "DB"
 // database_name = "job-tracker"
 // database_id = "<UUID from `wrangler d1 create job-tracker`>"
 //
-// [vars]
-// // The origin that is allowed to call your APIs (GitHub Pages):
-// PAGES_ORIGIN = "https://samanbahrampoor.github.io"
-// // Where to send the user after login:
-// APP_REDIRECT = "https://samanbahrampoor.github.io/job-tracker/jobs.html"
-// // Your deployed callback URL. Example: "https://<your-worker-subdomain>.workers.dev/auth/github/callback"
-// OAUTH_REDIRECT_URI = "https://<your-worker-domain>/auth/github/callback"
-// OAUTH_PROVIDER = "github"
+// If you keep Durable Objects, also have in wrangler.toml:
+// [durable_objects]
+// bindings = [{ name = "APP_SYNC", class_name = "AppSync" }]
+// [[migrations]]
+// tag = "v1"                # or v2, v3… (unique per change)
+// new_sqlite_classes = ["AppSync"]
 //
-// SECRETS (set with `wrangler secret put ...`):
-// ------------------------------------------------------
-// GITHUB_CLIENT_ID
-// GITHUB_CLIENT_SECRET
-// JWT_SECRET
+// Secrets (set with `wrangler secret put ...`):
+// - GITHUB_CLIENT_ID
+// - GITHUB_CLIENT_SECRET
+// - JWT_SECRET
 //
-// D1 SCHEMA (run via migration before deploying this file):
-// ------------------------------------------------------
+// D1 schema (apply via migrations before deploy):
 // CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT);
 // CREATE TABLE IF NOT EXISTS applications (
 //   user_id TEXT NOT NULL,
@@ -45,12 +45,11 @@
 //   PRIMARY KEY (user_id, job_id),
 //   FOREIGN KEY (user_id) REFERENCES users(id)
 // );
-//
-// ------------------------------------------------------
 
-/** @typedef {import('@cloudflare/workers-types').D1Database} D1Database */
+////////////////////////////////////////////////////////////////////////////////
+// Small utils
+////////////////////////////////////////////////////////////////////////////////
 
-/** Utility: base64url helpers for JWT */
 const b64u = {
   enc(bytes) {
     let s = btoa(String.fromCharCode(...new Uint8Array(bytes)));
@@ -71,13 +70,11 @@ const b64u = {
   }
 };
 
-/** Create HS256 JWT */
 async function jwtSignHS256(payload, secret) {
   const header = { alg: "HS256", typ: "JWT" };
-  const encHeader = b64u.encJSON(header);
-  const encPayload = b64u.encJSON(payload);
-  const toSign = `${encHeader}.${encPayload}`;
-
+  const h = b64u.encJSON(header);
+  const p = b64u.encJSON(payload);
+  const data = `${h}.${p}`;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -85,23 +82,20 @@ async function jwtSignHS256(payload, secret) {
     false,
     ["sign"]
   );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(toSign));
-  const encSig = b64u.enc(new Uint8Array(sig));
-  return `${toSign}.${encSig}`;
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+  return `${data}.${b64u.enc(new Uint8Array(sig))}`;
 }
 
-/** Verify HS256 JWT; returns payload or null */
 async function jwtVerifyHS256(token, secret) {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
-  const [encHeader, encPayload, encSig] = parts;
+  const [h, p, s] = parts;
   let header;
   try {
-    header = b64u.decJSON(encHeader);
+    header = b64u.decJSON(h);
     if (header.alg !== "HS256" || header.typ !== "JWT") return null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
+
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -112,26 +106,23 @@ async function jwtVerifyHS256(token, secret) {
   const ok = await crypto.subtle.verify(
     "HMAC",
     key,
-    b64u.decToBytes(encSig),
-    new TextEncoder().encode(`${encHeader}.${encPayload}`)
+    b64u.decToBytes(s),
+    new TextEncoder().encode(`${h}.${p}`)
   );
   if (!ok) return null;
-  try {
-    const payload = b64u.decJSON(encPayload);
-    // Optional: basic exp check if present
-    if (payload.exp && Date.now() / 1000 > payload.exp) return null;
-    return payload;
-  } catch {
-    return null;
-  }
+
+  let payload;
+  try { payload = b64u.decJSON(p); } catch { return null; }
+  if (payload.exp && Date.now() / 1000 > payload.exp) return null;
+  return payload;
 }
 
-/** Cookie helpers */
 function getCookie(req, name) {
   const cookie = req.headers.get("cookie") || "";
   const m = cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return m ? decodeURIComponent(m[1]) : null;
 }
+
 function setCookieHeader(name, value, opts = {}) {
   const parts = [`${name}=${encodeURIComponent(value)}`];
   if (opts.Path) parts.push(`Path=${opts.Path}`);
@@ -143,7 +134,13 @@ function setCookieHeader(name, value, opts = {}) {
   return parts.join("; ");
 }
 
-/** CORS helpers */
+function json(status, data, extra = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...extra }
+  });
+}
+
 function withCORS(res, origin) {
   const h = new Headers(res.headers);
   h.set("Access-Control-Allow-Origin", origin);
@@ -151,7 +148,8 @@ function withCORS(res, origin) {
   h.set("Vary", "Origin");
   return new Response(res.body, { status: res.status, headers: h });
 }
-function preflight(origin, methods = "GET,PUT,OPTIONS") {
+
+function preflight(origin, methods = "GET,PUT,POST,OPTIONS") {
   return withCORS(
     new Response(null, {
       status: 204,
@@ -165,14 +163,7 @@ function preflight(origin, methods = "GET,PUT,OPTIONS") {
     origin
   );
 }
-function json(status, data, extra = {}) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", ...extra }
-  });
-}
 
-/** Require user session from cookie */
 async function requireUser(req, env) {
   const token = getCookie(req, "session");
   if (!token) return null;
@@ -181,7 +172,25 @@ async function requireUser(req, env) {
   return { id: String(payload.sub), email: payload.email || null };
 }
 
-/** GitHub OAuth helper: exchange code for token */
+async function ensureUser(env, user) {
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO users (id, email) VALUES (?, ?)"
+  ).bind(user.id, user.email).run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GitHub OAuth helpers
+////////////////////////////////////////////////////////////////////////////////
+
+function githubAuthorizeURL(env, state) {
+  const u = new URL("https://github.com/login/oauth/authorize");
+  u.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
+  u.searchParams.set("redirect_uri", env.OAUTH_REDIRECT_URI);
+  u.searchParams.set("scope", "read:user user:email");
+  u.searchParams.set("state", state);
+  return u.toString();
+}
+
 async function githubExchangeCodeForToken(code, env) {
   const body = new URLSearchParams({
     client_id: env.GITHUB_CLIENT_ID,
@@ -200,7 +209,6 @@ async function githubExchangeCodeForToken(code, env) {
   return j.access_token;
 }
 
-/** GitHub API: get user profile */
 async function githubGetUser(accessToken) {
   const r = await fetch("https://api.github.com/user", {
     headers: {
@@ -213,17 +221,7 @@ async function githubGetUser(accessToken) {
   return r.json();
 }
 
-/** Build GitHub authorize URL */
-function githubAuthorizeURL(env, state) {
-  const u = new URL("https://github.com/login/oauth/authorize");
-  u.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
-  u.searchParams.set("redirect_uri", env.OAUTH_REDIRECT_URI);
-  u.searchParams.set("scope", "read:user user:email");
-  u.searchParams.set("state", state);
-  return u.toString();
-}
-
-/** CSRF state (lightweight): HMAC of timestamp */
+// lightweight CSRF state based on HMAC(secret, timestamp)
 async function buildState(env) {
   const ts = Math.floor(Date.now() / 1000).toString();
   const key = await crypto.subtle.importKey(
@@ -240,7 +238,6 @@ async function verifyState(env, state) {
   if (!state) return false;
   const [ts, encSig] = state.split(".");
   if (!ts || !encSig) return false;
-  // Optional: check freshness (e.g., 10 minutes)
   const age = Math.floor(Date.now() / 1000) - parseInt(ts, 10);
   if (isNaN(age) || age > 600) return false;
   const key = await crypto.subtle.importKey(
@@ -248,77 +245,90 @@ async function verifyState(env, state) {
     new TextEncoder().encode(env.JWT_SECRET),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign", "verify"]
+    ["verify"]
   );
-  const ok = await crypto.subtle.verify(
+  return await crypto.subtle.verify(
     "HMAC",
     key,
     b64u.decToBytes(encSig),
     new TextEncoder().encode(ts)
   );
-  return ok;
 }
 
-/** Ensure user row exists in D1 */
-async function ensureUser(env, user) {
-  await env.DB.prepare(
-    "INSERT OR IGNORE INTO users (id, email) VALUES (?, ?)"
-  ).bind(user.id, user.email).run();
-}
+////////////////////////////////////////////////////////////////////////////////
+// Worker
+////////////////////////////////////////////////////////////////////////////////
 
-/** Main Worker */
 export default {
   /**
    * @param {Request} req
-   * @param {{ DB: D1Database, JWT_SECRET: string, GITHUB_CLIENT_ID: string, GITHUB_CLIENT_SECRET: string, PAGES_ORIGIN: string, APP_REDIRECT: string, OAUTH_REDIRECT_URI: string }} env
+   * @param {{ DB:any, JWT_SECRET:string, GITHUB_CLIENT_ID:string, GITHUB_CLIENT_SECRET:string, PAGES_ORIGIN:string, APP_REDIRECT:string, OAUTH_REDIRECT_URI:string }} env
    * @param {ExecutionContext} ctx
    */
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const method = req.method;
+    const ORIGIN = env.PAGES_ORIGIN || "https://samanbahrampoor.github.io";
 
-    // Quick sanity for required vars
-    const PAGES_ORIGIN = env.PAGES_ORIGIN || "https://samanbahrampoor.github.io";
+    // Preflight
+    if (method === "OPTIONS") return preflight(ORIGIN);
 
-    // OPTIONS preflight
-    if (method === "OPTIONS") {
-      return preflight(PAGES_ORIGIN, "GET,PUT,POST,OPTIONS");
-    }
-
-    // CSRF: only allow calls from configured origin for mutating endpoints
+    // Enforce allowed Origin for /api/* routes
     const origin = req.headers.get("Origin");
-    if (origin && origin !== PAGES_ORIGIN && url.pathname.startsWith("/api/")) {
-      return withCORS(json(403, { error: "Forbidden origin" }), PAGES_ORIGIN);
+    if (origin && origin !== ORIGIN && url.pathname.startsWith("/api/")) {
+      return withCORS(json(403, { error: "Forbidden origin" }), ORIGIN);
     }
 
-    // ----- Auth routes (GitHub) -----
+    ////////////////////////////////////////////////////////////////////////////
+    // Auth routes
+    ////////////////////////////////////////////////////////////////////////////
 
-    // Start OAuth: redirects user to GitHub
-    if (url.pathname === "/auth/github/start" && method === "GET") {
-      const state = await buildState(env);
-      // set a small, short-lived cookie with the state (defense-in-depth)
+    // (Alias) Support old /oauth/login?redirect=...
+    if (url.pathname === "/oauth/login" && method === "GET") {
+      const desired = url.searchParams.get("redirect");
       const headers = new Headers();
-      headers.append(
-        "Set-Cookie",
-        setCookieHeader("oauth_state", state, {
+      if (desired) {
+        headers.append("Set-Cookie", setCookieHeader("post_login_redirect", desired, {
           Path: "/",
           HttpOnly: true,
           Secure: true,
-          SameSite: "Lax",
+          SameSite: "Lax", // same-site during redirects
           "Max-Age": 600
-        })
-      );
+        }));
+      }
+      const state = await buildState(env);
+      headers.append("Set-Cookie", setCookieHeader("oauth_state", state, {
+        Path: "/",
+        HttpOnly: true,
+        Secure: true,
+        SameSite: "Lax",
+        "Max-Age": 600
+      }));
       headers.set("Location", githubAuthorizeURL(env, state));
       return new Response(null, { status: 302, headers });
     }
 
-    // OAuth callback: exchanges code -> token; fetches profile; sets session cookie; redirects to app
+    // Start OAuth
+    if (url.pathname === "/auth/github/start" && method === "GET") {
+      const state = await buildState(env);
+      const headers = new Headers();
+      headers.append("Set-Cookie", setCookieHeader("oauth_state", state, {
+        Path: "/",
+        HttpOnly: true,
+        Secure: true,
+        SameSite: "Lax",
+        "Max-Age": 600
+      }));
+      headers.set("Location", githubAuthorizeURL(env, state));
+      return new Response(null, { status: 302, headers });
+    }
+
+    // OAuth callback
     if (url.pathname === "/auth/github/callback" && method === "GET") {
       try {
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
         const stateCookie = getCookie(req, "oauth_state");
-
         if (!code) return json(400, { error: "missing code" });
         if (!state || state !== stateCookie || !(await verifyState(env, state))) {
           return json(400, { error: "invalid state" });
@@ -326,90 +336,91 @@ export default {
 
         const accessToken = await githubExchangeCodeForToken(code, env);
         const profile = await githubGetUser(accessToken);
-
         const userId = String(profile.id);
-        // GitHub may return null email if private; ignore if not present
-        const email = (profile.email && String(profile.email)) || null;
+        const email = profile.email ? String(profile.email) : null;
 
-        // Issue a signed session (JWT)
+        // Issue session JWT (30d)
         const now = Math.floor(Date.now() / 1000);
-        const payload = {
-          sub: userId,
-          email,
-          iat: now,
-          exp: now + 60 * 60 * 24 * 30 // 30 days
-        };
+        const payload = { sub: userId, email, iat: now, exp: now + 60 * 60 * 24 * 30 };
         const sessionToken = await jwtSignHS256(payload, env.JWT_SECRET);
 
-        // Ensure user row exists
+        // Ensure user exists
         await ensureUser(env, { id: userId, email });
 
         const headers = new Headers();
-        headers.append(
-          "Set-Cookie",
-          setCookieHeader("session", sessionToken, {
-            Path: "/",
-            HttpOnly: true,
-            Secure: true,
-            SameSite: "Lax",
-            "Max-Age": 60 * 60 * 24 * 30
-          })
-        );
-        // Clear oauth_state cookie
-        headers.append(
-          "Set-Cookie",
-          setCookieHeader("oauth_state", "", {
-            Path: "/",
-            HttpOnly: true,
-            Secure: true,
-            SameSite: "Lax",
-            "Max-Age": 0
-          })
-        );
-        headers.set("Location", env.APP_REDIRECT || PAGES_ORIGIN);
+
+        // IMPORTANT for cross-site fetch from github.io → workers.dev:
+        headers.append("Set-Cookie", setCookieHeader("session", sessionToken, {
+          Path: "/",
+          HttpOnly: true,
+          Secure: true,
+          SameSite: "None",
+          "Max-Age": 60 * 60 * 24 * 30
+        }));
+
+        // Clear oauth_state
+        headers.append("Set-Cookie", setCookieHeader("oauth_state", "", {
+          Path: "/",
+          HttpOnly: true,
+          Secure: true,
+          SameSite: "Lax",
+          "Max-Age": 0
+        }));
+
+        // Optional post-login redirect override
+        const desired = getCookie(req, "post_login_redirect");
+        headers.append("Set-Cookie", setCookieHeader("post_login_redirect", "", {
+          Path: "/",
+          HttpOnly: true,
+          Secure: true,
+          SameSite: "Lax",
+          "Max-Age": 0
+        }));
+
+        const safeDesired =
+          desired && /^https:\/\/samanbahrampoor\.github\.io\/job-tracker\//.test(desired)
+            ? desired
+            : (env.APP_REDIRECT || ORIGIN);
+
+        headers.set("Location", safeDesired);
         return new Response(null, { status: 302, headers });
       } catch (e) {
         return json(500, { error: "oauth_callback_failed", detail: String(e) });
       }
     }
 
-    // ----- Session inspection -----
+    ////////////////////////////////////////////////////////////////////////////
+    // API routes
+    ////////////////////////////////////////////////////////////////////////////
+
     if (url.pathname === "/api/me" && method === "GET") {
       const user = await requireUser(req, env);
       const res = user ? json(200, { user }) : json(401, { error: "unauthorized" });
-      return withCORS(res, PAGES_ORIGIN);
+      return withCORS(res, ORIGIN);
     }
 
-    // ----- Applications API -----
-
-    // GET: list of { job_id, applied } for the logged-in user
     if (url.pathname === "/api/applications" && method === "GET") {
       const user = await requireUser(req, env);
-      if (!user) return withCORS(json(401, { error: "unauthorized" }), PAGES_ORIGIN);
+      if (!user) return withCORS(json(401, { error: "unauthorized" }), ORIGIN);
 
       await ensureUser(env, user);
-
       const { results } = await env.DB
         .prepare("SELECT job_id, applied FROM applications WHERE user_id = ?")
         .bind(user.id)
         .all();
 
-      return withCORS(json(200, { items: results || [] }), PAGES_ORIGIN);
+      return withCORS(json(200, { items: results || [] }), ORIGIN);
     }
 
-    // PUT: upsert a single job toggle
-    // URL: /api/applications/:job_id
     if (url.pathname.startsWith("/api/applications/") && method === "PUT") {
       const user = await requireUser(req, env);
-      if (!user) return withCORS(json(401, { error: "unauthorized" }), PAGES_ORIGIN);
+      if (!user) return withCORS(json(401, { error: "unauthorized" }), ORIGIN);
 
       const jobId = decodeURIComponent(url.pathname.split("/").pop() || "");
-      if (!jobId) return withCORS(json(400, { error: "missing job_id" }), PAGES_ORIGIN);
+      if (!jobId) return withCORS(json(400, { error: "missing job_id" }), ORIGIN);
 
       let body = {};
-      try {
-        body = await req.json();
-      } catch {}
+      try { body = await req.json(); } catch {}
       const applied = !!body.applied;
 
       await env.DB.prepare(
@@ -417,43 +428,47 @@ export default {
          VALUES (?, ?, ?, unixepoch())
          ON CONFLICT(user_id, job_id)
          DO UPDATE SET applied = excluded.applied, updated_at = unixepoch()`
-      )
-        .bind(user.id, jobId, applied ? 1 : 0)
-        .run();
+      ).bind(user.id, jobId, applied ? 1 : 0).run();
 
-      return withCORS(json(200, { ok: true, job_id: jobId, applied }), PAGES_ORIGIN);
+      return withCORS(json(200, { ok: true, job_id: jobId, applied }), ORIGIN);
     }
 
-    // Fallback: simple index
+    ////////////////////////////////////////////////////////////////////////////
+    // Default route
+    ////////////////////////////////////////////////////////////////////////////
+
     if (url.pathname === "/" && method === "GET") {
       const msg = {
         ok: true,
         routes: [
+          "GET  /oauth/login?redirect=<url>   (alias)",
           "GET  /auth/github/start",
           "GET  /auth/github/callback",
           "GET  /api/me",
           "GET  /api/applications",
           "PUT  /api/applications/:job_id"
-        ]
+        ],
+        origin: ORIGIN
       };
       return new Response(JSON.stringify(msg, null, 2), {
         headers: { "content-type": "application/json" }
       });
     }
 
-    // Not found
     return new Response("not found", { status: 404 });
   }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+// Minimal Durable Object export to satisfy binding
+////////////////////////////////////////////////////////////////////////////////
 export class AppSync {
-  constructor(state, env) { this.state = state; this.env = env; this.sockets = new Set(); }
-  async fetch(req) {
-    const { 0: client, 1: server } = new WebSocketPair();
-    this.state.acceptWebSocket(server);
-    return new Response(null, { status: 101, webSocket: client });
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
   }
-  webSocketMessage(ws, msg) { /* ignore or handle pings */ }
-  webSocketClose(ws) { this.sockets.delete(ws); }
-  webSocketOpen(ws) { this.sockets.add(ws); }
-  broadcast(obj) { for (const ws of this.sockets) ws.send(JSON.stringify(obj)); }
+  async fetch(req) {
+    // No behavior yet; DO is present only to satisfy binding.
+    return new Response("OK");
+  }
 }

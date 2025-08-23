@@ -1,157 +1,209 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Job Tracker</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- If you have a separate style.css in the repo, keep this link -->
+  <link rel="stylesheet" href="style.css" />
   <style>
-    body { font-family: sans-serif; margin: 2rem; }
-    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
-    .signin { margin-bottom: 1rem; }
-    .job-group { margin-bottom: 2rem; }
-    .job { border: 1px solid #ccc; border-radius: 8px; padding: 0.5rem; margin: 0.25rem 0; }
-    .job-header { font-weight: bold; }
-    .job small { color: #666; }
-    label { display: flex; align-items: center; gap: 0.5rem; }
+    /* Minimal sensible defaults (safe if style.css missing) */
+    :root { --card:#f8f9fb; --muted:#6b7280; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; margin: 24px; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button { padding: 8px 12px; border: 0; border-radius: 8px; background: #111827; color: white; cursor: pointer; }
+    button[disabled] { opacity: .6; cursor: default; }
+    #status { color: var(--muted); font-size: 14px; }
+    #sync { position: fixed; right: 12px; bottom: 12px; background: #111827; color:#fff; padding: 6px 10px; border-radius: 999px; font-size: 12px; display:none; }
+    .group { margin: 18px 0 26px; }
+    .group h2 { font-size: 18px; margin: 16px 0 6px; }
+    .group h3 { font-size: 14px; margin: 10px 0 8px; color: var(--muted); }
+    .job { background: var(--card); border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+    .job .title { font-weight: 600; }
+    .meta { color: var(--muted); font-size: 12px; margin-top: 4px; display:flex; gap:10px; flex-wrap:wrap; }
+    .meta a { color: inherit; text-decoration: underline; }
+    .applied { margin-top: 8px; }
   </style>
 </head>
 <body>
   <h1>Job Tracker</h1>
 
-  <div class="signin">
+  <div class="row" style="margin-bottom:12px">
     <button id="signin">Sign in with GitHub</button>
-    <span id="user-info"></span>
+    <div id="status">Checking session…</div>
   </div>
 
   <div id="jobs"></div>
 
+  <div id="sync">Sync: error</div>
+
   <script>
-    const WORKER_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev"; // e.g. https://job-tracker.yourname.workers.dev
+    // ====== CONFIG ======
+    const WORKER_BASE = "https://job-tracker-oauth.saman-bahrampoor.workers.dev";
+
+    // ====== STATE ======
     let currentUser = null;
     let appliedMap = new Map();
 
-    // Utility: create a stable job_id
-    function jobId(job) {
-      // Assume jobs.json has a unique "id" field, otherwise derive one
-      return job.id || btoa(unescape(encodeURIComponent(job.company + "|" + job.title + "|" + job.city)));
+    // ====== HELPERS ======
+    function showSync(msg, isError = false) {
+      const el = document.getElementById("sync");
+      el.textContent = `Sync: ${msg}`;
+      el.style.background = isError ? "#b91c1c" : "#065f46";
+      el.style.display = "inline-block";
+      clearTimeout(el._t);
+      el._t = setTimeout(() => (el.style.display = "none"), 2200);
     }
 
-    // Fetch user info
-    async function fetchUser() {
-      const res = await fetch(`${WORKER_BASE}/api/me`, { credentials: "include" });
-      if (res.ok) {
+    function jobId(job) {
+      // Prefer a stable id in jobs.json; else derive one best-effort from fields.
+      if (job.id) return String(job.id);
+      const raw = `${job.company || ""}|${job.title || ""}|${job.country || ""}|${job.city || ""}|${job.url || ""}`;
+      // Cheap, URL-safe base64
+      return btoa(unescape(encodeURIComponent(raw)));
+    }
+
+    async function safeFetch(url, opts = {}) {
+      const res = await fetch(url, { credentials: "include", ...opts });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res;
+    }
+
+    // ====== AUTH ======
+    async function getSession() {
+      try {
+        const res = await safeFetch(`${WORKER_BASE}/api/me`);
         const { user } = await res.json();
         currentUser = user;
-        document.getElementById("user-info").textContent = `Signed in as ${user.email || user.id}`;
-      } else {
+        document.getElementById("status").textContent = `Signed in as ${user.email || user.id}`;
+        document.getElementById("signin").disabled = true;
+      } catch {
         currentUser = null;
-        document.getElementById("user-info").textContent = "Not signed in";
+        document.getElementById("status").textContent = "Not signed in";
+        document.getElementById("signin").disabled = false;
       }
     }
 
-    // Fetch applied statuses
-    async function fetchApplications() {
+    // ====== DATA LOAD ======
+    async function loadApplied() {
       if (!currentUser) return;
-      const res = await fetch(`${WORKER_BASE}/api/applications`, { credentials: "include" });
-      if (res.ok) {
+      try {
+        const res = await safeFetch(`${WORKER_BASE}/api/applications`);
         const { items } = await res.json();
         appliedMap = new Map(items.map(x => [x.job_id, !!x.applied]));
+      } catch (e) {
+        showSync("error", true);
       }
     }
 
-    // Toggle a job’s applied state
-    async function setApplied(job_id, applied) {
-      if (!currentUser) {
-        alert("Please sign in first.");
-        return;
+    async function toggleApplied(jid, applied) {
+      try {
+        await safeFetch(`${WORKER_BASE}/api/applications/${encodeURIComponent(jid)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applied })
+        });
+        appliedMap.set(jid, applied);
+        showSync("ok", false);
+      } catch (e) {
+        showSync("error", true);
       }
-      await fetch(`${WORKER_BASE}/api/applications/${encodeURIComponent(job_id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ applied })
-      });
     }
 
-    // Render jobs grouped by company and location
-    async function renderJobs() {
-      const res = await fetch("jobs.json");
-      const jobs = await res.json();
-
+    // ====== RENDER ======
+    async function render() {
       const container = document.getElementById("jobs");
       container.innerHTML = "";
+      const resp = await fetch("jobs.json");
+      const jobs = await resp.json();
 
       // Group by company → location
-      const groups = {};
+      const groups = new Map();
       for (const job of jobs) {
-        const cid = job.company || "Unknown Company";
-        const loc = (job.country || "Unknown Country") + " / " + (job.city || "Unknown City");
-        groups[cid] = groups[cid] || {};
-        groups[cid][loc] = groups[cid][loc] || [];
-        groups[cid][loc].push(job);
+        const company = job.company || "Unknown Company";
+        const location = `${job.country || "Unknown Country"} / ${job.city || "Unknown City"}`;
+        if (!groups.has(company)) groups.set(company, new Map());
+        const byLoc = groups.get(company);
+        if (!byLoc.has(location)) byLoc.set(location, []);
+        byLoc.get(location).push(job);
       }
 
-      for (const [company, locs] of Object.entries(groups)) {
-        const div = document.createElement("div");
-        div.className = "job-group";
+      for (const [company, byLoc] of groups) {
+        const g = document.createElement("div");
+        g.className = "group";
         const h2 = document.createElement("h2");
         h2.textContent = company;
-        div.appendChild(h2);
+        g.appendChild(h2);
 
-        for (const [loc, jobsArr] of Object.entries(locs)) {
+        for (const [loc, arr] of byLoc) {
           const h3 = document.createElement("h3");
           h3.textContent = loc;
-          div.appendChild(h3);
+          g.appendChild(h3);
 
-          for (const job of jobsArr) {
+          for (const job of arr) {
             const jid = jobId(job);
-            const wrapper = document.createElement("div");
-            wrapper.className = "job";
+
+            const card = document.createElement("div");
+            card.className = "job";
 
             const title = document.createElement("div");
-            title.className = "job-header";
+            title.className = "title";
             title.textContent = job.title || "Untitled Job";
+            card.appendChild(title);
 
-            const meta = document.createElement("small");
-            meta.textContent = job.url ? job.url : "";
+            const meta = document.createElement("div");
+            meta.className = "meta";
+            if (job.url) {
+              const link = document.createElement("a");
+              link.href = job.url;
+              link.target = "_blank";
+              link.rel = "noopener noreferrer";
+              link.textContent = job.url;
+              meta.appendChild(link);
+            }
+            if (job.posted_date) {
+              const span = document.createElement("span");
+              span.textContent = `Posted: ${job.posted_date}`;
+              meta.appendChild(span);
+            }
+            card.appendChild(meta);
 
             const label = document.createElement("label");
+            label.className = "applied";
             const cb = document.createElement("input");
             cb.type = "checkbox";
             cb.checked = appliedMap.get(jid) || false;
-            cb.addEventListener("change", () => setApplied(jid, cb.checked));
+            cb.addEventListener("change", () => {
+              if (!currentUser) {
+                alert("Please sign in first.");
+                cb.checked = false;
+                return;
+              }
+              toggleApplied(jid, cb.checked);
+            });
             label.appendChild(cb);
-            label.appendChild(document.createTextNode("Applied"));
+            label.appendChild(document.createTextNode(" Applied"));
+            card.appendChild(label);
 
-            wrapper.appendChild(title);
-            if (job.url) {
-              const a = document.createElement("a");
-              a.href = job.url;
-              a.target = "_blank";
-              a.textContent = job.url;
-              wrapper.appendChild(a);
-            }
-            wrapper.appendChild(meta);
-            wrapper.appendChild(label);
-            div.appendChild(wrapper);
+            g.appendChild(card);
           }
         }
 
-        container.appendChild(div);
+        container.appendChild(g);
       }
     }
 
-    // Init
+    // ====== INIT ======
     document.getElementById("signin").addEventListener("click", () => {
+      // Start OAuth via Worker
       window.location.href = `${WORKER_BASE}/auth/github/start`;
     });
 
     (async () => {
-      await fetchUser();
-      if (currentUser) {
-        await fetchApplications();
-      }
-      await renderJobs();
+      await getSession();          // populates currentUser
+      if (currentUser) await loadApplied();
+      await render();
     })();
   </script>
 </body>
